@@ -1,0 +1,57 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: shopbuilder-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: shopbuilder
+      POSTGRES_USER: shopbuilder
+      POSTGRES_PASSWORD: shopbuilder_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shopbuilder -d shopbuilder"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: shopbuilder-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shopbuilder-backend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://shopbuilder:shopbuilder_pass@postgres:5432/shopbuilder
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: change_this_to_a_long_random_secret_in_production
+      PORT: 3000
+      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:5173
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  pgdata:
