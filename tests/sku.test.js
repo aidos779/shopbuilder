@@ -1,3 +1,6 @@
+// Mock database so product.service can be imported without a live Prisma engine
+jest.mock('../src/config/database', () => ({}));
+
 const { generateSKUCombinations } = require('../src/services/product.service');
 
 describe('SKU Generation — generateSKUCombinations', () => {

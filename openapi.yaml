@@ -1,0 +1,1899 @@
+openapi: 3.0.0
+info:
+  title: ShopBuilder API
+  version: 2.0.0
+  description: >-
+
+    ## ShopBuilder — Enterprise Multi-Tenant E-Commerce Platform
+
+
+    A scalable multi-tenant backend supporting multiple merchants, stores, and customers within isolated tenant
+    namespaces.
+
+
+    ### Role-Based Access Control (RBAC)
+
+
+    | Role | Description |
+
+    |------|-------------|
+
+    | `SUPER_ADMIN` | Full platform access — manages tenants, users, everything |
+
+    | `PLATFORM_ADMIN` | Manages merchants and platform configuration |
+
+    | `MERCHANT_OWNER` | Manages own stores, products, and orders |
+
+    | `STORE_MANAGER` | Manages inventory and orders for assigned store |
+
+    | `CUSTOMER` | Places and views own orders |
+
+
+    ### Authentication
+
+    Include a Bearer token on all protected endpoints:
+
+    ```
+
+    Authorization: Bearer <access_token>
+
+    ```
+
+
+    Access tokens expire in **15 minutes**. Use `POST /auth/refresh` with your refresh token to get a new one.
+
+
+    ### Multi-Tenancy
+
+    All business data is scoped to a `tenantId`. It is embedded in the JWT and automatically applied.
+
+    Admins can override `tenantId` via query parameter.
+          
+  contact:
+    name: ShopBuilder API Support
+    email: api@shopbuilder.io
+servers:
+  - url: http://localhost:3000
+    description: Local development
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token from POST /auth/login
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Resource not found
+    PaginatedMeta:
+      type: object
+      properties:
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+        pages:
+          type: integer
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum:
+            - SUPER_ADMIN
+            - PLATFORM_ADMIN
+            - MERCHANT_OWNER
+            - STORE_MANAGER
+            - CUSTOMER
+        tenantId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    Tenant:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Acme Commerce
+        slug:
+          type: string
+          example: acme-commerce
+        createdAt:
+          type: string
+          format: date-time
+    Merchant:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Acme Retail Ltd
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - SUSPENDED
+            - PENDING
+        tenantId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+    Store:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Downtown Flagship
+        description:
+          type: string
+          nullable: true
+        merchantId:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Premium Cotton T-Shirt
+        description:
+          type: string
+          nullable: true
+        price:
+          type: number
+          example: 29.99
+        category:
+          type: string
+          nullable: true
+        storeId:
+          type: string
+          format: uuid
+          nullable: true
+        tenantId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+    Variant:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        sku:
+          type: string
+          example: prod-uuid-S-Black-Cotton
+        barcode:
+          type: string
+          nullable: true
+        size:
+          type: string
+          nullable: true
+        color:
+          type: string
+          nullable: true
+        material:
+          type: string
+          nullable: true
+        price:
+          type: number
+          nullable: true
+        stock:
+          type: integer
+          example: 100
+        reservedStock:
+          type: integer
+          example: 15
+        productId:
+          type: string
+          format: uuid
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        orderNumber:
+          type: string
+          example: ORD-20240115-83421
+        status:
+          type: string
+          enum:
+            - PENDING
+            - PAID
+            - PACKED
+            - SHIPPED
+            - DELIVERED
+            - CANCELLED
+            - REFUNDED
+        totalAmount:
+          type: number
+          example: 59.98
+        notes:
+          type: string
+          nullable: true
+        storeId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+    OrderItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        variantId:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+          example: 2
+        unitPrice:
+          type: number
+          example: 29.99
+    CartItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        cartId:
+          type: string
+          format: uuid
+        variantId:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+          example: 2
+        variant:
+          $ref: '#/components/schemas/Variant'
+    Cart:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        storeId:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        subtotal:
+          type: number
+          example: 89.97
+        store:
+          $ref: '#/components/schemas/Store'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CartItem'
+security:
+  - bearerAuth: []
+paths:
+  /admin/stats:
+    get:
+      tags:
+        - Admin
+      summary: Platform-wide statistics
+      description: Returns total counts for users, tenants, merchants, stores, products, and orders — grouped by status/role.
+      responses:
+        '200':
+          description: Platform stats
+          content:
+            application/json:
+              example:
+                totals:
+                  users: 42
+                  tenants: 3
+                  merchants: 8
+                  stores: 12
+                  products: 156
+                  orders: 319
+                ordersByStatus:
+                  PENDING: 24
+                  PAID: 101
+                  DELIVERED: 187
+                usersByRole:
+                  CUSTOMER: 35
+                  MERCHANT_OWNER: 5
+        '403':
+          description: Forbidden
+  /admin/users:
+    get:
+      tags:
+        - Admin
+      summary: List all platform users
+      parameters:
+        - in: query
+          name: role
+          schema:
+            type: string
+            enum:
+              - SUPER_ADMIN
+              - PLATFORM_ADMIN
+              - MERCHANT_OWNER
+              - STORE_MANAGER
+              - CUSTOMER
+        - in: query
+          name: tenantId
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Paginated user list
+  /admin/users/{id}:
+    get:
+      tags:
+        - Admin
+      summary: Get a user by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User profile
+        '404':
+          description: User not found
+    delete:
+      tags:
+        - Admin
+      summary: Delete a user (SUPER_ADMIN only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User deleted
+        '404':
+          description: User not found
+  /admin/users/{id}/role:
+    patch:
+      tags:
+        - Admin
+      summary: Update a user's role and/or tenant assignment (SUPER_ADMIN only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - role
+              properties:
+                role:
+                  type: string
+                  enum:
+                    - SUPER_ADMIN
+                    - PLATFORM_ADMIN
+                    - MERCHANT_OWNER
+                    - STORE_MANAGER
+                    - CUSTOMER
+                  example: MERCHANT_OWNER
+                tenantId:
+                  type: string
+                  format: uuid
+                  nullable: true
+                  description: Assign or remove tenant association
+      responses:
+        '200':
+          description: User role updated
+        '400':
+          description: Invalid role
+        '404':
+          description: User not found
+  /admin/tenants:
+    get:
+      tags:
+        - Admin
+      summary: List all tenants with aggregate counts
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Paginated tenant list
+    post:
+      tags:
+        - Admin
+      summary: Create a new tenant (isolates a merchant ecosystem)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - slug
+              properties:
+                name:
+                  type: string
+                  example: Acme Commerce
+                slug:
+                  type: string
+                  example: acme-commerce
+                  description: URL-safe unique identifier
+      responses:
+        '201':
+          description: Tenant created
+        '409':
+          description: Slug already taken
+  /admin/tenants/{id}:
+    get:
+      tags:
+        - Admin
+      summary: Get a tenant by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tenant detail
+        '404':
+          description: Tenant not found
+  /auth/register:
+    post:
+      tags:
+        - Auth
+      summary: Register a new user
+      description: >-
+        Creates a new account and sends a verification email. Login requires email verification when
+        REQUIRE_EMAIL_VERIFICATION=true.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  minLength: 8
+                  example: securePass1!
+                role:
+                  type: string
+                  enum:
+                    - SUPER_ADMIN
+                    - PLATFORM_ADMIN
+                    - MERCHANT_OWNER
+                    - STORE_MANAGER
+                    - CUSTOMER
+                  default: CUSTOMER
+      responses:
+        '201':
+          description: User registered — verification email sent
+        '400':
+          description: Validation error
+        '409':
+          description: Email already registered
+        '429':
+          description: Too many requests
+  /auth/verify-email:
+    post:
+      tags:
+        - Auth
+      summary: Verify email address
+      description: Validates the token from the verification email and activates the account.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+              properties:
+                token:
+                  type: string
+                  example: a3f1c9d2e8b7...
+      responses:
+        '200':
+          description: Email verified successfully
+        '400':
+          description: Invalid or expired token
+        '429':
+          description: Too many requests
+  /auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Login and receive access + refresh tokens
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  example: user@example.com
+                password:
+                  type: string
+                  example: securePass1!
+      responses:
+        '200':
+          description: Returns accessToken, refreshToken, and user profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+                    description: Short-lived JWT (15 minutes)
+                  refreshToken:
+                    type: string
+                    description: Long-lived token (7 days), store securely
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Invalid credentials
+        '403':
+          description: Email not verified (when REQUIRE_EMAIL_VERIFICATION=true)
+        '429':
+          description: Too many requests
+  /auth/refresh:
+    post:
+      tags:
+        - Auth
+      summary: Exchange a refresh token for a new access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: New access token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+        '401':
+          description: Invalid or expired refresh token
+  /auth/logout:
+    post:
+      tags:
+        - Auth
+      summary: Revoke refresh token (logout)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Logged out successfully
+        '401':
+          description: Unauthorized
+  /auth/me:
+    get:
+      tags:
+        - Auth
+      summary: Get current authenticated user
+      responses:
+        '200':
+          description: JWT payload of the current user
+        '401':
+          description: Unauthorized — no or invalid token
+  /auth/forgot-password:
+    post:
+      tags:
+        - Auth
+      summary: Request a password reset email
+      description: >-
+        Sends a password reset link to the email address if it is registered. Always returns 200 to prevent account
+        enumeration.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+      responses:
+        '200':
+          description: Reset email sent (if address is registered)
+        '429':
+          description: Too many requests
+  /auth/reset-password:
+    post:
+      tags:
+        - Auth
+      summary: Reset password using email token
+      description: Sets a new password using the token from the reset email. All active sessions are revoked.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+                - newPassword
+              properties:
+                token:
+                  type: string
+                  example: a3f1c9d2e8b7...
+                newPassword:
+                  type: string
+                  minLength: 8
+                  example: NewSecurePass456!
+      responses:
+        '200':
+          description: Password reset — all sessions revoked
+        '400':
+          description: Invalid/expired token or weak password
+        '429':
+          description: Too many requests
+  /auth/password:
+    patch:
+      tags:
+        - Auth
+      summary: Change password (revokes all active sessions)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - currentPassword
+                - newPassword
+              properties:
+                currentPassword:
+                  type: string
+                  example: OldPass123!
+                newPassword:
+                  type: string
+                  minLength: 8
+                  example: NewSecurePass456!
+      responses:
+        '200':
+          description: Password changed, all sessions revoked
+        '400':
+          description: Missing fields or password too short
+        '401':
+          description: Current password incorrect
+  /cart:
+    get:
+      tags:
+        - Cart
+      summary: Get the current user's cart for a store
+      parameters:
+        - in: query
+          name: storeId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Cart with items and subtotal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+        '400':
+          description: storeId is required
+        '401':
+          description: Unauthorized
+    delete:
+      tags:
+        - Cart
+      summary: Clear all items from the cart
+      parameters:
+        - in: query
+          name: storeId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Cart cleared
+        '401':
+          description: Unauthorized
+  /cart/items:
+    post:
+      tags:
+        - Cart
+      summary: Add an item to the cart
+      description: Creates the cart if it doesn't exist. Adds to existing quantity if the variant is already in the cart.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - storeId
+                - variantId
+              properties:
+                storeId:
+                  type: string
+                  format: uuid
+                variantId:
+                  type: string
+                  format: uuid
+                quantity:
+                  type: integer
+                  minimum: 1
+                  default: 1
+      responses:
+        '201':
+          description: Item added or quantity updated
+        '400':
+          description: Insufficient stock or missing fields
+        '401':
+          description: Unauthorized
+        '404':
+          description: Store or variant not found
+  /cart/items/{variantId}:
+    patch:
+      tags:
+        - Cart
+      summary: Update item quantity in cart
+      parameters:
+        - in: path
+          name: variantId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - storeId
+                - quantity
+              properties:
+                storeId:
+                  type: string
+                  format: uuid
+                quantity:
+                  type: integer
+                  minimum: 1
+      responses:
+        '200':
+          description: Item quantity updated
+        '400':
+          description: Insufficient stock or invalid quantity
+        '401':
+          description: Unauthorized
+        '404':
+          description: Cart or item not found
+    delete:
+      tags:
+        - Cart
+      summary: Remove an item from the cart
+      parameters:
+        - in: path
+          name: variantId
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: storeId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Item removed
+        '401':
+          description: Unauthorized
+        '404':
+          description: Item not found
+  /cart/checkout:
+    post:
+      tags:
+        - Cart
+      summary: Convert cart to order (checkout)
+      description: |
+        Creates an order from the current cart, reserves stock, clears the cart,
+        and sends an order confirmation email. The order starts in PENDING status.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - storeId
+              properties:
+                storeId:
+                  type: string
+                  format: uuid
+                notes:
+                  type: string
+                  example: Please leave at the door
+      responses:
+        '201':
+          description: Order created — confirmation email queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          description: Empty cart or insufficient stock
+        '401':
+          description: Unauthorized
+        '404':
+          description: Store not found
+  /inventory/{variantId}/status:
+    get:
+      tags:
+        - Inventory
+      summary: Get inventory status for a variant
+      description: Returns total stock, reserved stock, and computed available stock.
+      parameters:
+        - in: path
+          name: variantId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Inventory status
+          content:
+            application/json:
+              example:
+                variantId: uuid
+                sku: PROD-S-Black-Cotton
+                stock: 100
+                reservedStock: 15
+                availableStock: 85
+        '404':
+          description: Variant not found
+  /inventory/{variantId}/increase:
+    post:
+      tags:
+        - Inventory
+      summary: Increase stock (goods received)
+      parameters:
+        - in: path
+          name: variantId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - quantity
+              properties:
+                quantity:
+                  type: integer
+                  minimum: 1
+                  example: 50
+      responses:
+        '200':
+          description: Stock increased
+        '400':
+          description: Invalid quantity
+        '404':
+          description: Variant not found
+  /inventory/{variantId}/decrease:
+    post:
+      tags:
+        - Inventory
+      summary: Decrease stock (shrinkage, damage, write-off)
+      parameters:
+        - in: path
+          name: variantId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - quantity
+              properties:
+                quantity:
+                  type: integer
+                  minimum: 1
+                  example: 3
+      responses:
+        '200':
+          description: Stock decreased
+        '400':
+          description: Insufficient stock
+  /inventory/{variantId}/reserve:
+    post:
+      tags:
+        - Inventory
+      summary: Reserve stock (hold for pending order)
+      parameters:
+        - in: path
+          name: variantId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - quantity
+              properties:
+                quantity:
+                  type: integer
+                  minimum: 1
+                  example: 5
+      responses:
+        '200':
+          description: Stock reserved
+        '400':
+          description: Insufficient available stock
+  /inventory/{variantId}/release:
+    post:
+      tags:
+        - Inventory
+      summary: Release reserved stock (order cancelled or expired)
+      parameters:
+        - in: path
+          name: variantId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - quantity
+              properties:
+                quantity:
+                  type: integer
+                  minimum: 1
+                  example: 5
+      responses:
+        '200':
+          description: Reserved stock released
+        '400':
+          description: Cannot release more than reserved
+  /inventory/transfer:
+    post:
+      tags:
+        - Inventory
+      summary: Transfer stock between two variants (warehouse transfer)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - fromVariantId
+                - toVariantId
+                - quantity
+              properties:
+                fromVariantId:
+                  type: string
+                  format: uuid
+                toVariantId:
+                  type: string
+                  format: uuid
+                quantity:
+                  type: integer
+                  minimum: 1
+                  example: 10
+      responses:
+        '200':
+          description: Transfer completed (atomic transaction)
+          content:
+            application/json:
+              example:
+                message: 10 units transferred
+                transferred: 10
+                from:
+                  id: uuid
+                  sku: A
+                  stock: 40
+                to:
+                  id: uuid
+                  sku: B
+                  stock: 60
+        '400':
+          description: Insufficient source stock or same variant
+  /merchants:
+    get:
+      tags:
+        - Merchants
+      summary: List merchants (SUPER_ADMIN, PLATFORM_ADMIN, MERCHANT_OWNER)
+      parameters:
+        - in: query
+          name: tenantId
+          schema:
+            type: string
+          description: Filter by tenant (admin only)
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum:
+              - ACTIVE
+              - SUSPENDED
+              - PENDING
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Paginated merchant list
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+    post:
+      tags:
+        - Merchants
+      summary: Create a merchant (SUPER_ADMIN, PLATFORM_ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - email
+                - tenantId
+              properties:
+                name:
+                  type: string
+                  example: Acme Retail Ltd
+                email:
+                  type: string
+                  format: email
+                  example: contact@acme.com
+                phone:
+                  type: string
+                  example: +1-555-0100
+                address:
+                  type: string
+                  example: 123 Commerce St, NY 10001
+                tenantId:
+                  type: string
+                  format: uuid
+      responses:
+        '201':
+          description: Merchant created
+        '409':
+          description: Email already in use
+  /merchants/{id}:
+    get:
+      tags:
+        - Merchants
+      summary: Get merchant by ID (with stores)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Merchant detail
+        '404':
+          description: Merchant not found
+    patch:
+      tags:
+        - Merchants
+      summary: Update merchant details
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                phone:
+                  type: string
+                address:
+                  type: string
+      responses:
+        '200':
+          description: Updated merchant
+        '404':
+          description: Merchant not found
+    delete:
+      tags:
+        - Merchants
+      summary: Delete a merchant (SUPER_ADMIN only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Merchant deleted
+        '404':
+          description: Merchant not found
+  /merchants/{id}/suspend:
+    patch:
+      tags:
+        - Merchants
+      summary: Suspend a merchant account
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Merchant suspended
+  /merchants/{id}/activate:
+    patch:
+      tags:
+        - Merchants
+      summary: Reactivate a suspended merchant
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Merchant activated
+  /orders:
+    post:
+      tags:
+        - Orders
+      summary: Create a new order (reserves stock atomically)
+      description: |
+        Creates a PENDING order and reserves stock for each line item in a single transaction.
+        Stock is deducted permanently when the order transitions to PAID.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - storeId
+                - items
+              properties:
+                storeId:
+                  type: string
+                  format: uuid
+                items:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required:
+                      - variantId
+                      - quantity
+                    properties:
+                      variantId:
+                        type: string
+                        format: uuid
+                      quantity:
+                        type: integer
+                        minimum: 1
+                        example: 2
+                notes:
+                  type: string
+                  example: Gift wrapping requested
+                tenantId:
+                  type: string
+                  description: Required for SUPER_ADMIN/PLATFORM_ADMIN
+      responses:
+        '201':
+          description: Order created with PENDING status
+          content:
+            application/json:
+              example:
+                id: uuid
+                orderNumber: ORD-20240115-83421
+                status: PENDING
+                totalAmount: 59.98
+                items:
+                  - variantId: uuid
+                    quantity: 2
+                    unitPrice: 29.99
+        '400':
+          description: Insufficient stock or missing fields
+        '404':
+          description: Store or variant not found
+    get:
+      tags:
+        - Orders
+      summary: List orders (role-scoped — customers see only their own)
+      parameters:
+        - in: query
+          name: storeId
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum:
+              - PENDING
+              - PAID
+              - PACKED
+              - SHIPPED
+              - DELIVERED
+              - CANCELLED
+              - REFUNDED
+        - in: query
+          name: userId
+          schema:
+            type: string
+          description: Admin/staff only — filter by customer
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Paginated order list
+  /orders/{id}:
+    get:
+      tags:
+        - Orders
+      summary: Get a single order (customers only see their own)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order detail with line items
+        '404':
+          description: Order not found
+  /orders/{id}/status:
+    patch:
+      tags:
+        - Orders
+      summary: Advance order status (enforces valid state machine transitions)
+      description: |
+        Valid transitions:
+        - PENDING → PAID (deducts stock), CANCELLED (releases reserve)
+        - PAID → PACKED, REFUNDED
+        - PACKED → SHIPPED
+        - SHIPPED → DELIVERED
+        - DELIVERED → REFUNDED
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum:
+                    - PAID
+                    - PACKED
+                    - SHIPPED
+                    - DELIVERED
+                    - CANCELLED
+                    - REFUNDED
+                  example: PAID
+      responses:
+        '200':
+          description: Order status updated
+        '400':
+          description: Invalid status transition
+        '403':
+          description: Forbidden
+  /orders/{id}/cancel:
+    post:
+      tags:
+        - Orders
+      summary: Cancel an order (releases reserved stock atomically)
+      description: Customers can cancel their own PENDING orders. Staff can cancel PENDING or PAID orders.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order cancelled and stock released
+        '400':
+          description: Order cannot be cancelled in current status
+  /products:
+    get:
+      tags:
+        - Products
+      summary: List products (tenant-scoped)
+      parameters:
+        - in: query
+          name: storeId
+          schema:
+            type: string
+        - in: query
+          name: category
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Paginated product list
+        '401':
+          description: Unauthorized
+    post:
+      tags:
+        - Products
+      summary: Create a product (MERCHANT_OWNER, SUPER_ADMIN, PLATFORM_ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  example: Premium Cotton T-Shirt
+                description:
+                  type: string
+                  example: 100% organic cotton, pre-shrunk
+                price:
+                  type: number
+                  example: 29.99
+                category:
+                  type: string
+                  example: Apparel
+                storeId:
+                  type: string
+                  format: uuid
+                tenantId:
+                  type: string
+                  format: uuid
+                  description: Required for SUPER_ADMIN/PLATFORM_ADMIN
+      responses:
+        '201':
+          description: Product created
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+  /products/{id}:
+    get:
+      tags:
+        - Products
+      summary: Get product by ID (with variants)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Product with variants
+        '404':
+          description: Product not found
+    patch:
+      tags:
+        - Products
+      summary: Update a product
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                price:
+                  type: number
+                category:
+                  type: string
+      responses:
+        '200':
+          description: Updated product
+        '404':
+          description: Product not found
+    delete:
+      tags:
+        - Products
+      summary: Delete a product
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Product deleted
+        '404':
+          description: Product not found
+  /products/{id}/variants:
+    get:
+      tags:
+        - Products
+      summary: List all variants for a product
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of variants
+        '404':
+          description: Product not found
+  /products/{id}/variants/{variantId}:
+    get:
+      tags:
+        - Products
+      summary: Get a single variant
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: variantId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Variant detail
+        '404':
+          description: Variant not found
+  /products/generate-variants:
+    post:
+      tags:
+        - Products
+      summary: Preview SKU matrix (cartesian product, not persisted)
+      description: |
+        Generates all attribute combinations. Example: sizes=["S","M"], colors=["Black","White"] → 4 SKUs.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sizes:
+                  type: array
+                  items:
+                    type: string
+                  example:
+                    - S
+                    - M
+                    - L
+                colors:
+                  type: array
+                  items:
+                    type: string
+                  example:
+                    - Black
+                    - White
+                    - Navy
+                materials:
+                  type: array
+                  items:
+                    type: string
+                  example:
+                    - Cotton
+                    - Polyester
+      responses:
+        '200':
+          description: Generated SKU combinations
+          content:
+            application/json:
+              example:
+                count: 18
+                variants:
+                  - sku: S-Black-Cotton
+                    size: S
+                    color: Black
+                    material: Cotton
+        '400':
+          description: No attributes provided
+  /products/save-variants:
+    post:
+      tags:
+        - Products
+      summary: Generate and persist variant SKU matrix for a product
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - productId
+              properties:
+                productId:
+                  type: string
+                  format: uuid
+                sizes:
+                  type: array
+                  items:
+                    type: string
+                  example:
+                    - S
+                    - M
+                    - L
+                    - XL
+                colors:
+                  type: array
+                  items:
+                    type: string
+                  example:
+                    - Black
+                    - White
+                materials:
+                  type: array
+                  items:
+                    type: string
+                  example:
+                    - Cotton
+      responses:
+        '201':
+          description: Variants saved (idempotent — safe to re-run)
+        '404':
+          description: Product not found for this tenant
+  /products/variants/{variantId}/stock:
+    patch:
+      tags:
+        - Products
+      summary: Adjust stock delta for a variant (legacy endpoint)
+      description: Pass positive to add, negative to subtract. See /inventory for granular operations.
+      parameters:
+        - in: path
+          name: variantId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - quantity
+              properties:
+                quantity:
+                  type: integer
+                  example: 50
+      responses:
+        '200':
+          description: Updated variant
+        '400':
+          description: Insufficient stock
+        '403':
+          description: Forbidden
+  /stores:
+    get:
+      tags:
+        - Stores
+      summary: List stores (tenant-scoped)
+      parameters:
+        - in: query
+          name: merchantId
+          schema:
+            type: string
+        - in: query
+          name: tenantId
+          schema:
+            type: string
+          description: Admin override
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Paginated store list
+    post:
+      tags:
+        - Stores
+      summary: Create a store under a merchant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - merchantId
+              properties:
+                name:
+                  type: string
+                  example: Downtown Flagship
+                description:
+                  type: string
+                  example: Main retail location
+                merchantId:
+                  type: string
+                  format: uuid
+                tenantId:
+                  type: string
+                  format: uuid
+                  description: For SUPER_ADMIN/PLATFORM_ADMIN only
+      responses:
+        '201':
+          description: Store created
+        '404':
+          description: Merchant not found
+  /stores/{id}:
+    get:
+      tags:
+        - Stores
+      summary: Get store by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Store detail with product and order counts
+        '404':
+          description: Store not found
+    patch:
+      tags:
+        - Stores
+      summary: Update store name or description
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Updated store
+    delete:
+      tags:
+        - Stores
+      summary: Delete a store (SUPER_ADMIN, PLATFORM_ADMIN, MERCHANT_OWNER)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Store deleted
+tags:
+  - name: Admin
+    description: Platform administration (SUPER_ADMIN and PLATFORM_ADMIN only)
+  - name: Auth
+    description: Authentication and token management
+  - name: Cart
+    description: Shopping cart and checkout
+  - name: Inventory
+    description: Transaction-safe stock management per variant
+  - name: Merchants
+    description: Merchant management (platform-level)
+  - name: Orders
+    description: Order lifecycle management
+  - name: Products
+    description: Product catalog and SKU/variant management
+  - name: Stores
+    description: Store management within a merchant

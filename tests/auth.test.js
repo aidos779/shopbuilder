@@ -1,6 +1,20 @@
 process.env.JWT_SECRET = 'test_secret_for_unit_tests';
 process.env.NODE_ENV = 'test';
 
+jest.mock('bcrypt', () => ({
+  hash: jest.fn().mockResolvedValue('$2b$12$mockhash'),
+  compare: jest.fn().mockResolvedValue(true),
+}));
+
+jest.mock('../src/config/database', () => ({
+  user: { findUnique: jest.fn(), create: jest.fn() },
+  refreshToken: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
+  tenant: { findUnique: jest.fn() },
+  $transaction: jest.fn().mockImplementation(async (arg) =>
+    typeof arg === 'function' ? arg({}) : Promise.all(arg)
+  ),
+}));
+
 const request = require('supertest');
 const app = require('../src/app');
 

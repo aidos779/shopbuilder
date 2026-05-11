@@ -12,6 +12,9 @@ COPY src ./src
 
 EXPOSE 3000
 
-# prisma db push creates the schema on a fresh DB without requiring migration files.
-# Switch to `prisma migrate deploy` once you've generated migrations with `prisma migrate dev`.
-CMD ["sh", "-c", "npx prisma db push --accept-data-loss && node src/server.js"]
+# On first boot, mark the baseline migration as already applied (the DB was bootstrapped
+# by `prisma db push` before migrations existed).  On subsequent boots the command is a
+# no-op and the `|| true` prevents it from stopping startup.
+# `prisma migrate deploy` then applies any pending migrations (expand_schema on first run,
+# nothing on subsequent runs).
+CMD ["sh", "-c", "(npx prisma migrate resolve --applied 20240101000000_init || true) && npx prisma migrate deploy && node src/server.js"]

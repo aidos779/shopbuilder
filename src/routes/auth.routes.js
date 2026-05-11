@@ -3,7 +3,8 @@ const authController = require('../controllers/auth.controller');
 const { authenticate } = require('../middleware/auth.middleware');
 const { createRateLimiter } = require('../middleware/rateLimiter.middleware');
 
-const authLimiter = createRateLimiter();
+const authLimiter = createRateLimiter({ max: 10, windowMs: 60 * 1000 });
+const strictLimiter = createRateLimiter({ max: 5, windowMs: 15 * 60 * 1000 });
 
 /**
  * @swagger
@@ -18,6 +19,7 @@ const authLimiter = createRateLimiter();
  *   post:
  *     tags: [Auth]
  *     summary: Register a new user
+ *     description: Creates a new account and sends a verification email. Login requires email verification when REQUIRE_EMAIL_VERIFICATION=true.
  *     security: []
  *     requestBody:
  *       required: true
@@ -34,14 +36,14 @@ const authLimiter = createRateLimiter();
  *               password:
  *                 type: string
  *                 minLength: 8
- *                 example: "securePass1"
+ *                 example: "securePass1!"
  *               role:
  *                 type: string
- *                 enum: [USER, ADMIN]
- *                 default: USER
+ *                 enum: [SUPER_ADMIN, PLATFORM_ADMIN, MERCHANT_OWNER, STORE_MANAGER, CUSTOMER]
+ *                 default: CUSTOMER
  *     responses:
  *       201:
- *         description: User registered
+ *         description: User registered — verification email sent
  *       400:
  *         description: Validation error
  *       409:
@@ -50,6 +52,35 @@ const authLimiter = createRateLimiter();
  *         description: Too many requests
  */
 router.post('/register', authLimiter, authController.register);
+
+/**
+ * @swagger
+ * /auth/verify-email:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Verify email address
+ *     description: Validates the token from the verification email and activates the account.
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [token]
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 example: "a3f1c9d2e8b7..."
+ *     responses:
+ *       200:
+ *         description: Email verified successfully
+ *       400:
+ *         description: Invalid or expired token
+ *       429:
+ *         description: Too many requests
+ */
+router.post('/verify-email', strictLimiter, authController.verifyEmail);
 
 /**
  * @swagger
@@ -71,10 +102,10 @@ router.post('/register', authLimiter, authController.register);
  *                 example: user@example.com
  *               password:
  *                 type: string
- *                 example: "securePass1"
+ *                 example: "securePass1!"
  *     responses:
  *       200:
- *         description: Returns accessToken and refreshToken
+ *         description: Returns accessToken, refreshToken, and user profile
  *         content:
  *           application/json:
  *             schema:
@@ -82,12 +113,16 @@ router.post('/register', authLimiter, authController.register);
  *               properties:
  *                 accessToken:
  *                   type: string
+ *                   description: Short-lived JWT (15 minutes)
  *                 refreshToken:
  *                   type: string
+ *                   description: Long-lived token (7 days), store securely
  *                 user:
- *                   type: object
+ *                   $ref: '#/components/schemas/User'
  *       401:
  *         description: Invalid credentials
+ *       403:
+ *         description: Email not verified (when REQUIRE_EMAIL_VERIFICATION=true)
  *       429:
  *         description: Too many requests
  */
@@ -113,6 +148,13 @@ router.post('/login', authLimiter, authController.login);
  *     responses:
  *       200:
  *         description: New access token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 accessToken:
+ *                   type: string
  *       401:
  *         description: Invalid or expired refresh token
  */
@@ -147,13 +189,105 @@ router.post('/logout', authenticate, authController.logout);
  * /auth/me:
  *   get:
  *     tags: [Auth]
- *     summary: Get current authenticated user (protected route)
+ *     summary: Get current authenticated user
  *     responses:
  *       200:
- *         description: Current user payload from JWT
+ *         description: JWT payload of the current user
  *       401:
  *         description: Unauthorized — no or invalid token
  */
 router.get('/me', authenticate, authController.me);
+
+/**
+ * @swagger
+ * /auth/forgot-password:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Request a password reset email
+ *     description: Sends a password reset link to the email address if it is registered. Always returns 200 to prevent account enumeration.
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email]
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: user@example.com
+ *     responses:
+ *       200:
+ *         description: Reset email sent (if address is registered)
+ *       429:
+ *         description: Too many requests
+ */
+router.post('/forgot-password', strictLimiter, authController.forgotPassword);
+
+/**
+ * @swagger
+ * /auth/reset-password:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Reset password using email token
+ *     description: Sets a new password using the token from the reset email. All active sessions are revoked.
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [token, newPassword]
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 example: "a3f1c9d2e8b7..."
+ *               newPassword:
+ *                 type: string
+ *                 minLength: 8
+ *                 example: "NewSecurePass456!"
+ *     responses:
+ *       200:
+ *         description: Password reset — all sessions revoked
+ *       400:
+ *         description: Invalid/expired token or weak password
+ *       429:
+ *         description: Too many requests
+ */
+router.post('/reset-password', strictLimiter, authController.resetPassword);
+
+/**
+ * @swagger
+ * /auth/password:
+ *   patch:
+ *     tags: [Auth]
+ *     summary: Change password (revokes all active sessions)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [currentPassword, newPassword]
+ *             properties:
+ *               currentPassword:
+ *                 type: string
+ *                 example: "OldPass123!"
+ *               newPassword:
+ *                 type: string
+ *                 minLength: 8
+ *                 example: "NewSecurePass456!"
+ *     responses:
+ *       200:
+ *         description: Password changed, all sessions revoked
+ *       400:
+ *         description: Missing fields or password too short
+ *       401:
+ *         description: Current password incorrect
+ */
+router.patch('/password', authenticate, authController.changePassword);
 
 module.exports = router;

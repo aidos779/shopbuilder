@@ -7,7 +7,18 @@ const register = async (req, res, next) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
     const user = await authService.register({ email, password, role });
-    res.status(201).json({ message: 'User registered successfully', user });
+    res.status(201).json({ message: 'Registration successful. Please check your email to verify your account.', user });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const verifyEmail = async (req, res, next) => {
+  try {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: 'token is required' });
+    await authService.verifyEmail(token);
+    res.json({ message: 'Email verified successfully. You can now log in.' });
   } catch (err) {
     next(err);
   }
@@ -56,4 +67,41 @@ const me = (req, res) => {
   res.json({ user: req.user });
 };
 
-module.exports = { register, login, refresh, logout, me };
+const forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'email is required' });
+    await authService.forgotPassword(email);
+    res.json({ message: 'If that email address is registered, you will receive a password reset link shortly.' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const resetPassword = async (req, res, next) => {
+  try {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: 'token and newPassword are required' });
+    }
+    await authService.resetPassword({ token, newPassword });
+    res.json({ message: 'Password reset successfully. Please log in with your new password.' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const changePassword = async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'currentPassword and newPassword are required' });
+    }
+    await authService.changePassword({ userId: req.user.sub, currentPassword, newPassword });
+    res.json({ message: 'Password changed successfully. All sessions have been revoked — please log in again.' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { register, verifyEmail, login, refresh, logout, me, forgotPassword, resetPassword, changePassword };

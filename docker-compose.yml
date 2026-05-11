@@ -40,13 +40,22 @@ services:
     ports:
       - "3000:3000"
     environment:
+      # Docker-specific — hardcoded to use container hostnames, not localhost
       DATABASE_URL: postgresql://shopbuilder:shopbuilder_pass@postgres:5432/shopbuilder
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      JWT_SECRET: change_this_to_a_long_random_secret_in_production
-      PORT: 3000
-      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:5173
       NODE_ENV: production
+      # Read from .env via ${VAR} substitution
+      JWT_SECRET: ${JWT_SECRET}
+      PORT: ${PORT:-3000}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      EMAIL_HOST: ${EMAIL_HOST:-smtp.mailtrap.io}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_USER: ${EMAIL_USER}
+      EMAIL_PASS: ${EMAIL_PASS}
+      EMAIL_FROM: ${EMAIL_FROM}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      REQUIRE_EMAIL_VERIFICATION: ${REQUIRE_EMAIL_VERIFICATION:-false}
     depends_on:
       postgres:
         condition: service_healthy
