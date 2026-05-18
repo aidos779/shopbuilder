@@ -1,5 +1,7 @@
 const prisma = require('../config/database');
 const emailService = require('./email.service');
+const inventoryService = require('./inventory.service');
+const discountService = require('./discount.service');
 
 const VALID_TRANSITIONS = {
   PENDING:   ['PAID', 'CANCELLED'],
@@ -17,7 +19,7 @@ const generateOrderNumber = () => {
   return `ORD-${date}-${rand}`;
 };
 
-const createOrder = async ({ storeId, userId, items, tenantId, notes }) => {
+const createOrder = async ({ storeId, userId, items, tenantId, notes, discountCodes = [] }) => {
   if (!storeId || !userId || !tenantId || !Array.isArray(items) || items.length === 0) {
     throw Object.assign(new Error('storeId, userId, tenantId and at least one item are required'), { status: 400 });
   }
@@ -54,14 +56,18 @@ const createOrder = async ({ storeId, userId, items, tenantId, notes }) => {
     return { variantId: item.variantId, quantity: item.quantity, unitPrice };
   });
 
-  const totalAmount = orderItems.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
+  const subtotal = orderItems.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
+  const discountResult = await discountService.applyDiscountCodes({ tenantId, storeId, subtotal, codes: discountCodes });
+  const routingPlan = await inventoryService.routeInventory({ items, tenantId, storeId });
 
   const order = await prisma.$transaction(async (tx) => {
     const newOrder = await tx.order.create({
       data: {
         orderNumber: generateOrderNumber(),
         status: 'PENDING',
-        totalAmount,
+        totalAmount: discountResult.finalTotal,
+        discountCode: discountResult.applied.map((discount) => discount.code).join(',') || null,
+        discountAmount: discountResult.totalDiscount,
         notes,
         tenantId,
         storeId,
@@ -84,10 +90,26 @@ const createOrder = async ({ storeId, userId, items, tenantId, notes }) => {
       )
     );
 
+    if (routingPlan?.length) {
+      await inventoryService.reserveWarehousePlan({ tx, orderId: newOrder.id, plan: routingPlan });
+    }
+
+    await discountService.incrementRedemptions({
+      tx,
+      discountIds: discountResult.applied.map((discount) => discount.id),
+    });
+
     return newOrder;
   });
 
   await emailService.sendOrderConfirmationEmail(order.user.email, order);
+  const storeWithMerchant = await prisma.store.findFirst({
+    where: { id: storeId, tenantId },
+    include: { merchant: { select: { email: true } } },
+  });
+  if (storeWithMerchant?.merchant?.email) {
+    await emailService.sendMerchantOrderNotificationEmail(storeWithMerchant.merchant.email, order);
+  }
 
   return order;
 };
@@ -154,6 +176,9 @@ const updateOrderStatus = async ({ orderId, status, tenantId }) => {
   if (status === 'PAID') {
     return prisma.$transaction(async (tx) => {
       const updated = await tx.order.update({ where: { id: orderId }, data: { status } });
+      if (tx.inventoryReservation) {
+        await inventoryService.finalizeWarehouseReservations({ tx, orderId });
+      }
       await Promise.all(
         order.items.map((item) =>
           tx.variant.update({
@@ -173,6 +198,9 @@ const updateOrderStatus = async ({ orderId, status, tenantId }) => {
   if (status === 'CANCELLED') {
     return prisma.$transaction(async (tx) => {
       const updated = await tx.order.update({ where: { id: orderId }, data: { status } });
+      if (tx.inventoryReservation) {
+        await inventoryService.releaseWarehouseReservations({ tx, orderId });
+      }
       await Promise.all(
         order.items.map((item) =>
           tx.variant.update({
@@ -202,6 +230,9 @@ const cancelOrder = async ({ orderId, tenantId, userId, role }) => {
 
   return prisma.$transaction(async (tx) => {
     const updated = await tx.order.update({ where: { id: orderId }, data: { status: 'CANCELLED' } });
+    if (tx.inventoryReservation) {
+      await inventoryService.releaseWarehouseReservations({ tx, orderId });
+    }
     await Promise.all(
       order.items.map((item) =>
         tx.variant.update({

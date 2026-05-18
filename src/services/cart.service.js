@@ -1,10 +1,20 @@
 const prisma = require('../config/database');
+const inventoryService = require('./inventory.service');
+const discountService = require('./discount.service');
+const emailService = require('./email.service');
+
+const getStoreContext = async ({ storeId, tenantId }) => {
+  const store = await prisma.store.findFirst({
+    where: { id: storeId, ...(tenantId ? { tenantId } : {}) },
+  });
+  if (!store) throw Object.assign(new Error('Store not found'), { status: 404 });
+  return { store, tenantId: tenantId || store.tenantId };
+};
 
 const getCart = async ({ userId, storeId, tenantId }) => {
   if (!storeId) throw Object.assign(new Error('storeId is required'), { status: 400 });
 
-  const store = await prisma.store.findFirst({ where: { id: storeId, tenantId } });
-  if (!store) throw Object.assign(new Error('Store not found'), { status: 404 });
+  const context = await getStoreContext({ storeId, tenantId });
 
   const cart = await prisma.cart.findUnique({
     where: { userId_storeId: { userId, storeId } },
@@ -22,7 +32,7 @@ const getCart = async ({ userId, storeId, tenantId }) => {
   });
 
   if (!cart) {
-    return { items: [], store: { id: store.id, name: store.name }, subtotal: 0 };
+    return { items: [], store: { id: context.store.id, name: context.store.name }, subtotal: 0 };
   }
 
   const subtotal = cart.items.reduce((sum, item) => {
@@ -41,11 +51,10 @@ const addItem = async ({ userId, storeId, tenantId, variantId, quantity = 1 }) =
     throw Object.assign(new Error('quantity must be a positive integer'), { status: 400 });
   }
 
-  const store = await prisma.store.findFirst({ where: { id: storeId, tenantId } });
-  if (!store) throw Object.assign(new Error('Store not found'), { status: 404 });
+  const context = await getStoreContext({ storeId, tenantId });
 
   const variant = await prisma.variant.findFirst({
-    where: { id: variantId, product: { tenantId } },
+    where: { id: variantId, product: { tenantId: context.tenantId } },
   });
   if (!variant) throw Object.assign(new Error('Variant not found'), { status: 404 });
 
@@ -59,7 +68,7 @@ const addItem = async ({ userId, storeId, tenantId, variantId, quantity = 1 }) =
 
   const cart = await prisma.cart.upsert({
     where: { userId_storeId: { userId, storeId } },
-    create: { userId, storeId, tenantId },
+    create: { userId, storeId, tenantId: context.tenantId },
     update: {},
   });
 
@@ -141,8 +150,9 @@ const clearCart = async ({ userId, storeId }) => {
   await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
 };
 
-const checkout = async ({ userId, storeId, tenantId, notes }) => {
+const checkout = async ({ userId, storeId, tenantId, notes, discountCodes = [] }) => {
   if (!storeId) throw Object.assign(new Error('storeId is required'), { status: 400 });
+  const context = await getStoreContext({ storeId, tenantId });
 
   const cart = await prisma.cart.findUnique({
     where: { userId_storeId: { userId, storeId } },
@@ -172,16 +182,29 @@ const checkout = async ({ userId, storeId, tenantId, notes }) => {
   }));
 
   const totalAmount = orderItems.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
+  const discountResult = await discountService.applyDiscountCodes({
+    tenantId: context.tenantId,
+    storeId,
+    subtotal: totalAmount,
+    codes: discountCodes,
+  });
   const orderNumber = generateOrderNumber();
+  const routingPlan = await inventoryService.routeInventory({
+    items: cart.items.map((item) => ({ variantId: item.variantId, quantity: item.quantity })),
+    tenantId: context.tenantId,
+    storeId,
+  });
 
   const order = await prisma.$transaction(async (tx) => {
     const newOrder = await tx.order.create({
       data: {
         orderNumber,
         status: 'PENDING',
-        totalAmount,
+        totalAmount: discountResult.finalTotal,
+        discountCode: discountResult.applied.map((discount) => discount.code).join(',') || null,
+        discountAmount: discountResult.totalDiscount,
         notes: notes || null,
-        tenantId,
+        tenantId: context.tenantId,
         storeId,
         userId,
         items: { create: orderItems },
@@ -202,10 +225,27 @@ const checkout = async ({ userId, storeId, tenantId, notes }) => {
       )
     );
 
+    if (routingPlan?.length) {
+      await inventoryService.reserveWarehousePlan({ tx, orderId: newOrder.id, plan: routingPlan });
+    }
+
+    await discountService.incrementRedemptions({
+      tx,
+      discountIds: discountResult.applied.map((discount) => discount.id),
+    });
+
     await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
 
     return newOrder;
   });
+
+  const storeWithMerchant = await prisma.store.findFirst({
+    where: { id: storeId, tenantId: context.tenantId },
+    include: { merchant: { select: { email: true } } },
+  });
+  if (storeWithMerchant?.merchant?.email) {
+    await emailService.sendMerchantOrderNotificationEmail(storeWithMerchant.merchant.email, order);
+  }
 
   return order;
 };

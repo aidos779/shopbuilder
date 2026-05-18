@@ -49,12 +49,26 @@ Admins can override \`tenantId\` via query parameter.
           bearerFormat: 'JWT',
           description: 'JWT access token from POST /auth/login',
         },
+        storefrontToken: {
+          type: 'apiKey',
+          in: 'header',
+          name: 'x-storefront-token',
+          description: 'Storefront API token with granular scopes',
+        },
       },
       schemas: {
         Error: {
           type: 'object',
           properties: {
-            error: { type: 'string', example: 'Resource not found' },
+            error: {
+              type: 'object',
+              properties: {
+                message: { type: 'string', example: 'Resource not found' },
+                status: { type: 'integer', example: 404 },
+                path: { type: 'string', example: '/products/not-found' },
+                timestamp: { type: 'string', format: 'date-time' },
+              },
+            },
           },
         },
         PaginatedMeta: {
@@ -191,6 +205,198 @@ Admins can override \`tenantId\` via query parameter.
             },
           },
         },
+        Warehouse: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            name: { type: 'string', example: 'North Fulfillment Center' },
+            priority: { type: 'integer', example: 10 },
+            tenantId: { type: 'string', format: 'uuid' },
+            storeId: { type: 'string', format: 'uuid', nullable: true },
+          },
+        },
+        WarehouseInventory: {
+          type: 'object',
+          properties: {
+            warehouseId: { type: 'string', format: 'uuid' },
+            variantId: { type: 'string', format: 'uuid' },
+            stock: { type: 'integer', example: 100 },
+            reservedStock: { type: 'integer', example: 10 },
+          },
+        },
+        Discount: {
+          type: 'object',
+          properties: {
+            code: { type: 'string', example: 'SAVE10' },
+            type: { type: 'string', enum: ['PERCENTAGE', 'FIXED_AMOUNT'] },
+            value: { type: 'number', example: 10 },
+            stackable: { type: 'boolean', example: true },
+          },
+        },
+        Payment: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            orderId: { type: 'string', format: 'uuid' },
+            status: { type: 'string', enum: ['REQUIRES_ACTION', 'AUTHORIZED', 'CAPTURED', 'FAILED', 'REFUNDED'] },
+            amount: { type: 'number', example: 120 },
+            requires3ds: { type: 'boolean', example: true },
+            threeDSecureToken: { type: 'string', nullable: true },
+          },
+        },
+        WebhookEndpoint: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            url: { type: 'string', example: 'https://example.com/webhook' },
+            events: { type: 'array', items: { type: 'string' }, example: ['payment.captured'] },
+            active: { type: 'boolean', example: true },
+          },
+        },
+        StorefrontToken: {
+          type: 'object',
+          properties: {
+            token: { type: 'string', example: 'sb_pk_...' },
+            record: { type: 'object' },
+          },
+        },
+        Subscription: {
+          type: 'object',
+          properties: {
+            planName: { type: 'string', example: 'Pro Monthly' },
+            amount: { type: 'number', example: 29.99 },
+            nextBillingAt: { type: 'string', format: 'date-time' },
+            status: { type: 'string', enum: ['ACTIVE', 'PAST_DUE', 'CANCELLED'] },
+          },
+        },
+      },
+    },
+    paths: {
+      '/inventory/warehouses': {
+        get: {
+          tags: ['Inventory'],
+          summary: 'List warehouses',
+          responses: { 200: { description: 'Paginated warehouses' } },
+        },
+        post: {
+          tags: ['Inventory'],
+          summary: 'Create a warehouse',
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { $ref: '#/components/schemas/Warehouse' } } },
+          },
+          responses: { 201: { description: 'Warehouse created' } },
+        },
+      },
+      '/inventory/warehouses/{warehouseId}/variants/{variantId}': {
+        put: {
+          tags: ['Inventory'],
+          summary: 'Set stock for a variant at a warehouse',
+          parameters: [
+            { in: 'path', name: 'warehouseId', required: true, schema: { type: 'string' } },
+            { in: 'path', name: 'variantId', required: true, schema: { type: 'string' } },
+          ],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object', required: ['quantity'], properties: { quantity: { type: 'integer', example: 50 } } } } },
+          },
+          responses: { 200: { description: 'Warehouse stock updated' } },
+        },
+      },
+      '/discounts': {
+        get: { tags: ['Discounts'], summary: 'List discounts', responses: { 200: { description: 'Paginated discounts' } } },
+        post: {
+          tags: ['Discounts'],
+          summary: 'Create discount or promo code',
+          requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/Discount' } } } },
+          responses: { 201: { description: 'Discount created' } },
+        },
+      },
+      '/discounts/preview': {
+        post: {
+          tags: ['Discounts'],
+          summary: 'Preview stackable/exclusive discount calculation',
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object', properties: { subtotal: { type: 'number', example: 100 }, codes: { type: 'array', items: { type: 'string' }, example: ['SAVE10'] } } } } },
+          },
+          responses: { 200: { description: 'Discount calculation result' } },
+        },
+      },
+      '/payments/intents': {
+        post: {
+          tags: ['Payments'],
+          summary: 'Create mock payment intent',
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object', required: ['orderId'], properties: { orderId: { type: 'string' }, cardNumber: { type: 'string', example: '4000000000003184' } } } } },
+          },
+          responses: { 201: { description: 'Payment intent created', content: { 'application/json': { schema: { $ref: '#/components/schemas/Payment' } } } } },
+        },
+      },
+      '/payments/{id}/3ds': {
+        post: {
+          tags: ['Payments'],
+          summary: 'Complete mock 3D Secure challenge',
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+          requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['token'], properties: { token: { type: 'string' } } } } } },
+          responses: { 200: { description: 'Payment authorized' } },
+        },
+      },
+      '/payments/{id}/capture': {
+        post: {
+          tags: ['Payments'],
+          summary: 'Capture authorized payment and mark order paid',
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+          responses: { 200: { description: 'Payment captured' } },
+        },
+      },
+      '/webhooks': {
+        get: { tags: ['Webhooks'], summary: 'List webhook endpoints', responses: { 200: { description: 'Webhook endpoints' } } },
+        post: {
+          tags: ['Webhooks'],
+          summary: 'Create webhook endpoint',
+          requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/WebhookEndpoint' } } } },
+          responses: { 201: { description: 'Webhook endpoint created' } },
+        },
+      },
+      '/webhooks/deliveries': {
+        get: { tags: ['Webhooks'], summary: 'List webhook deliveries and DLQ status', responses: { 200: { description: 'Webhook deliveries' } } },
+      },
+      '/storefront/tokens': {
+        get: { tags: ['Storefront'], summary: 'List storefront tokens', responses: { 200: { description: 'Storefront tokens without raw secrets' } } },
+        post: {
+          tags: ['Storefront'],
+          summary: 'Create scoped storefront token',
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object', required: ['name', 'scopes'], properties: { name: { type: 'string' }, scopes: { type: 'array', items: { type: 'string', enum: ['products:read', 'cart:write', 'orders:write'] } } } } } },
+          },
+          responses: { 201: { description: 'Raw token returned once', content: { 'application/json': { schema: { $ref: '#/components/schemas/StorefrontToken' } } } } },
+        },
+      },
+      '/storefront/products': {
+        get: {
+          tags: ['Storefront'],
+          summary: 'Public storefront product catalog using scoped token',
+          security: [{ storefrontToken: [] }],
+          responses: { 200: { description: 'Tenant-scoped products' } },
+        },
+      },
+      '/subscriptions': {
+        get: { tags: ['Subscriptions'], summary: 'List subscriptions', responses: { 200: { description: 'Paginated subscriptions' } } },
+        post: {
+          tags: ['Subscriptions'],
+          summary: 'Create recurring subscription',
+          requestBody: { required: true, content: { 'application/json': { schema: { $ref: '#/components/schemas/Subscription' } } } },
+          responses: { 201: { description: 'Subscription created' } },
+        },
+      },
+      '/analytics': {
+        get: { tags: ['Analytics'], summary: 'Aggregate revenue, orders, carts and conversion metrics', responses: { 200: { description: 'Analytics summary' } } },
+      },
+      '/admin/queues': {
+        get: { tags: ['Admin'], summary: 'Queue visibility for email, webhook and scheduled workers', responses: { 200: { description: 'BullMQ job counts' } } },
       },
     },
     security: [{ bearerAuth: [] }],

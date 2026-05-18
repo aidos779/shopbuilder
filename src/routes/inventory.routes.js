@@ -43,6 +43,27 @@ router.get(
   inventoryController.getStatus
 );
 
+router.get(
+  '/warehouses',
+  authenticate,
+  authorize('SUPER_ADMIN', 'PLATFORM_ADMIN', 'MERCHANT_OWNER', 'STORE_MANAGER'),
+  inventoryController.listWarehouses
+);
+
+router.post(
+  '/warehouses',
+  authenticate,
+  authorize('SUPER_ADMIN', 'PLATFORM_ADMIN', 'MERCHANT_OWNER'),
+  inventoryController.createWarehouse
+);
+
+router.put(
+  '/warehouses/:warehouseId/variants/:variantId',
+  authenticate,
+  authorize('SUPER_ADMIN', 'PLATFORM_ADMIN', 'MERCHANT_OWNER', 'STORE_MANAGER'),
+  inventoryController.setWarehouseStock
+);
+
 /**
  * @swagger
  * /inventory/{variantId}/increase:

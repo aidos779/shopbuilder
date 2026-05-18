@@ -19,6 +19,17 @@ jest.mock('../src/config/database', () => ({
 
 jest.mock('../src/services/email.service', () => ({
   sendOrderConfirmationEmail: jest.fn().mockResolvedValue(undefined),
+  sendMerchantOrderNotificationEmail: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock('../src/services/inventory.service', () => ({
+  routeInventory: jest.fn().mockResolvedValue(null),
+  reserveWarehousePlan: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock('../src/services/discount.service', () => ({
+  applyDiscountCodes: jest.fn(async ({ subtotal }) => ({ totalDiscount: 0, applied: [], finalTotal: subtotal })),
+  incrementRedemptions: jest.fn().mockResolvedValue(undefined),
 }));
 
 const cartService = require('../src/services/cart.service');

@@ -5,11 +5,13 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
+    "worker": "node src/worker.js",
     "dev": "nodemon src/server.js",
-    "test": "jest --runInBand --forceExit",
+    "test": "DATABASE_URL=postgresql://shopbuilder:shopbuilder_pass@localhost:5432/shopbuilder JWT_SECRET=test_jwt_secret_for_local_tests_123456 jest --runInBand --forceExit",
     "db:migrate": "prisma migrate deploy",
     "db:generate": "prisma generate",
-    "export:openapi": "node scripts/export-openapi.js"
+    "export:openapi": "node scripts/export-openapi.js",
+    "verify:email": "node scripts/verify-email-provider.js"
   },
   "dependencies": {
     "@prisma/client": "^5.10.0",

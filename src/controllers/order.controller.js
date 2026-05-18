@@ -5,12 +5,12 @@ const create = async (req, res, next) => {
   try {
     const tenantId = resolveTenantId(req) || req.body.tenantId;
     const userId = req.user.sub;
-    const { storeId, items, notes } = req.body;
+    const { storeId, items, notes, discountCodes = [] } = req.body;
 
     if (!storeId) return res.status(400).json({ error: 'storeId is required' });
     if (!tenantId) return res.status(400).json({ error: 'tenantId required (assign user to a tenant first)' });
 
-    const order = await orderService.createOrder({ storeId, userId, items, tenantId, notes });
+    const order = await orderService.createOrder({ storeId, userId, items, tenantId, notes, discountCodes });
     res.status(201).json(order);
   } catch (err) {
     next(err);

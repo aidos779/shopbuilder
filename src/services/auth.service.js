@@ -1,6 +1,25 @@
-const bcrypt = require('bcrypt');
+let bcrypt;
+try {
+  bcrypt = require('bcrypt');
+} catch {
+  const { scryptSync, timingSafeEqual, randomBytes: cryptoRandomBytes } = require('crypto');
+  bcrypt = {
+    async hash(password) {
+      const salt = cryptoRandomBytes(16).toString('hex');
+      const hash = scryptSync(password, salt, 64).toString('hex');
+      return `scrypt$${salt}$${hash}`;
+    },
+    async compare(password, stored) {
+      if (!stored?.startsWith('scrypt$')) return false;
+      const [, salt, hash] = stored.split('$');
+      const actual = Buffer.from(scryptSync(password, salt, 64).toString('hex'), 'hex');
+      const expected = Buffer.from(hash, 'hex');
+      return actual.length === expected.length && timingSafeEqual(actual, expected);
+    },
+  };
+}
 const jwt = require('jsonwebtoken');
-const { randomBytes } = require('crypto');
+const { createHash, randomBytes } = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const prisma = require('../config/database');
 const emailService = require('./email.service');
@@ -11,8 +30,11 @@ const ACCESS_TOKEN_EXPIRY = '15m';
 const REFRESH_TOKEN_EXPIRY_DAYS = 7;
 const EMAIL_VERIFICATION_HOURS = 24;
 const PASSWORD_RESET_HOURS = 1;
+const PUBLIC_REGISTRATION_ROLES = ['CUSTOMER', 'MERCHANT_OWNER'];
 
-const register = async ({ email, password, role = 'CUSTOMER', tenantId }) => {
+const hashToken = (token) => createHash('sha256').update(token).digest('hex');
+
+const register = async ({ email, password, role = 'CUSTOMER', tenantId, tenantName, merchantName, phone, address }) => {
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw Object.assign(new Error('Invalid email format'), { status: 400 });
   }
@@ -23,6 +45,12 @@ const register = async ({ email, password, role = 'CUSTOMER', tenantId }) => {
   const normalizedRole = role.toUpperCase();
   if (!ALL_ROLES.includes(normalizedRole)) {
     throw Object.assign(new Error(`Invalid role. Valid: ${ALL_ROLES.join(', ')}`), { status: 400 });
+  }
+  if (!PUBLIC_REGISTRATION_ROLES.includes(normalizedRole)) {
+    throw Object.assign(new Error('Public registration only supports CUSTOMER or MERCHANT_OWNER'), { status: 403 });
+  }
+  if (normalizedRole === 'CUSTOMER' && tenantId) {
+    throw Object.assign(new Error('Customers cannot self-assign a tenant during public registration'), { status: 403 });
   }
 
   const existing = await prisma.user.findUnique({ where: { email } });
@@ -37,19 +65,56 @@ const register = async ({ email, password, role = 'CUSTOMER', tenantId }) => {
 
   const hashed = await bcrypt.hash(password, SALT_ROUNDS);
   const verificationToken = randomBytes(32).toString('hex');
+  const verificationTokenHash = hashToken(verificationToken);
   const verificationExpiry = new Date(Date.now() + EMAIL_VERIFICATION_HOURS * 3600 * 1000);
 
-  const user = await prisma.user.create({
-    data: {
-      email,
-      password: hashed,
-      role: normalizedRole,
-      tenantId: tenantId || null,
-      emailVerified: false,
-      emailVerificationToken: verificationToken,
-      emailVerificationExpiry: verificationExpiry,
-    },
-    select: { id: true, email: true, role: true, tenantId: true, emailVerified: true, createdAt: true },
+  const user = await prisma.$transaction(async (tx) => {
+    let resolvedTenantId = tenantId || null;
+
+    if (normalizedRole === 'MERCHANT_OWNER' && !tenantId) {
+      const slugBase = email
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+      const slugSuffix = randomBytes(3).toString('hex');
+      const slug = `${slugBase}-${slugSuffix}`;
+
+      const newTenant = await tx.tenant.create({
+        data: {
+          name: tenantName || merchantName || `Tenant for ${email}`,
+          slug,
+        },
+      });
+      resolvedTenantId = newTenant.id;
+    }
+
+    const createdUser = await tx.user.create({
+      data: {
+        email,
+        password: hashed,
+        role: normalizedRole,
+        tenantId: resolvedTenantId,
+        emailVerified: false,
+        emailVerificationToken: verificationTokenHash,
+        emailVerificationExpiry: verificationExpiry,
+      },
+      select: { id: true, email: true, role: true, tenantId: true, emailVerified: true, createdAt: true },
+    });
+
+    if (normalizedRole === 'MERCHANT_OWNER') {
+      await tx.merchant.create({
+        data: {
+          name: merchantName || tenantName || `${email}'s shop`,
+          email,
+          phone,
+          address,
+          tenantId: resolvedTenantId,
+        },
+      });
+    }
+
+    return createdUser;
   });
 
   await emailService.sendVerificationEmail(email, verificationToken);
@@ -60,7 +125,7 @@ const register = async ({ email, password, role = 'CUSTOMER', tenantId }) => {
 const verifyEmail = async (token) => {
   if (!token) throw Object.assign(new Error('Verification token is required'), { status: 400 });
 
-  const user = await prisma.user.findUnique({ where: { emailVerificationToken: token } });
+  const user = await prisma.user.findUnique({ where: { emailVerificationToken: hashToken(token) } });
   if (!user) {
     throw Object.assign(new Error('Invalid or expired verification token'), { status: 400 });
   }
@@ -99,7 +164,7 @@ const login = async ({ email, password }) => {
   const { refreshToken, expiresAt } = generateRefreshToken();
 
   await prisma.refreshToken.create({
-    data: { token: refreshToken, userId: user.id, expiresAt },
+    data: { token: hashToken(refreshToken), userId: user.id, expiresAt },
   });
 
   return {
@@ -110,7 +175,8 @@ const login = async ({ email, password }) => {
 };
 
 const refresh = async (token) => {
-  const record = await prisma.refreshToken.findUnique({ where: { token } });
+  const tokenHash = hashToken(token);
+  const record = await prisma.refreshToken.findUnique({ where: { token: tokenHash } });
 
   if (!record || record.revoked || record.expiresAt < new Date()) {
     throw Object.assign(new Error('Invalid or expired refresh token'), { status: 401 });
@@ -121,27 +187,35 @@ const refresh = async (token) => {
     throw Object.assign(new Error('User not found'), { status: 404 });
   }
 
-  return { accessToken: generateAccessToken(user) };
+  const { refreshToken, expiresAt } = generateRefreshToken();
+
+  await prisma.$transaction([
+    prisma.refreshToken.update({ where: { token: tokenHash }, data: { revoked: true } }),
+    prisma.refreshToken.create({ data: { token: hashToken(refreshToken), userId: user.id, expiresAt } }),
+  ]);
+
+  return { accessToken: generateAccessToken(user), refreshToken };
 };
 
 const logout = async (token) => {
-  const record = await prisma.refreshToken.findUnique({ where: { token } });
+  const tokenHash = hashToken(token);
+  const record = await prisma.refreshToken.findUnique({ where: { token: tokenHash } });
   if (!record) {
     throw Object.assign(new Error('Refresh token not found'), { status: 404 });
   }
-  await prisma.refreshToken.update({ where: { token }, data: { revoked: true } });
+  await prisma.refreshToken.update({ where: { token: tokenHash }, data: { revoked: true } });
 };
 
 const forgotPassword = async (email) => {
   const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) return; // Silent — do not reveal whether the email is registered
+  if (!user) return;
 
   const resetToken = randomBytes(32).toString('hex');
   const resetExpiry = new Date(Date.now() + PASSWORD_RESET_HOURS * 3600 * 1000);
 
   await prisma.user.update({
     where: { id: user.id },
-    data: { passwordResetToken: resetToken, passwordResetExpiry: resetExpiry },
+    data: { passwordResetToken: hashToken(resetToken), passwordResetExpiry: resetExpiry },
   });
 
   await emailService.sendPasswordResetEmail(email, resetToken);
@@ -153,7 +227,7 @@ const resetPassword = async ({ token, newPassword }) => {
     throw Object.assign(new Error('Password must be at least 8 characters'), { status: 400 });
   }
 
-  const user = await prisma.user.findUnique({ where: { passwordResetToken: token } });
+  const user = await prisma.user.findUnique({ where: { passwordResetToken: hashToken(token) } });
   if (!user || !user.passwordResetExpiry || user.passwordResetExpiry < new Date()) {
     throw Object.assign(new Error('Invalid or expired reset token'), { status: 400 });
   }
@@ -191,7 +265,7 @@ const generateAccessToken = (user) =>
   jwt.sign(
     { sub: user.id, email: user.email, role: user.role, tenantId: user.tenantId ?? null },
     process.env.JWT_SECRET,
-    { expiresIn: ACCESS_TOKEN_EXPIRY }
+    { expiresIn: ACCESS_TOKEN_EXPIRY, issuer: 'shopbuilder-api', audience: 'shopbuilder-clients' }
   );
 
 const generateRefreshToken = () => {
@@ -210,4 +284,5 @@ module.exports = {
   forgotPassword,
   resetPassword,
   changePassword,
+  hashToken,
 };

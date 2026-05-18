@@ -1,0 +1,124 @@
+ShopBuilder Final Defense Checklist
+
+Status legend:
+[x] implemented or present
+[~] partially implemented and needs hardening
+[ ] not implemented yet
+
+1. Full Auth System
+[x] Registration
+[x] Login
+[x] Logout
+[x] JWT access tokens
+[x] Refresh token rotation
+[x] Email verification with SMTP provider through queued worker
+[x] Password reset via SMTP provider through queued worker
+[~] RBAC enforcement; admin self-registration is blocked, but endpoint coverage still needs integration tests
+[x] Rate limiting with Redis in production
+[x] Environment-based CORS configuration
+
+2. ShopBuilder Business Logic
+[x] Multi-tenant merchant onboarding creates tenant, merchant, and owner atomically
+[~] Tenant isolation exists in service queries; needs integration tests across all endpoints
+[~] Product catalog CRUD
+[x] Variant matrix generation
+[x] Automatic SKU generation
+[x] Multi-warehouse inventory
+[x] Smart inventory routing logic
+[x] Checkout creates pending orders and reserves stock
+[x] Payment integration flow
+[x] 3D Secure handling
+[x] Webhook engine
+[x] HMAC signature verification
+[x] Exponential webhook retry backoff
+[x] Dead-letter queue
+[x] Discount/promo engine
+[x] Stackable vs exclusive discounts
+[x] Abandoned cart recovery workers
+[x] Storefront API token auth and granular scopes
+[x] Analytics aggregation endpoint
+[x] Subscription/recurring billing
+
+3. Email Events
+[x] Merchant order notification
+[x] Customer order confirmation
+[x] Email verification
+[x] Password reset
+[x] Abandoned cart reminder
+[x] Subscription renewal billing
+
+4. Background Workers
+[x] Redis-backed email queue
+[x] Abandoned cart jobs
+[x] Webhook retry jobs
+[x] Cron jobs
+[x] Retry handling
+[x] Failure tracking
+[x] Queue visibility endpoint
+
+5. Dockerization
+[x] docker-compose.yml
+[x] Backend container
+[x] Frontend container
+[x] PostgreSQL 15
+[x] Redis
+[x] Worker container
+
+6. Frontend
+[x] Real API auth flows
+[x] Email verification form
+[x] Password reset forms
+[~] Merchant dashboard surface via product/order/admin API panels
+[x] Product create/list/variant generation
+[x] Inventory management for variant and warehouse stock
+[x] Checkout flow
+[x] Orders view
+[x] Analytics via dedicated aggregation endpoint
+[~] Role-based behavior depends on backend responses
+[x] Real backend API consumption only
+
+7. API & Documentation
+[x] Swagger/OpenAPI served at /docs
+[~] openapi.yaml exists but must be regenerated after code changes
+[x] Standardized error middleware for thrown errors
+[~] Pagination on list endpoints
+[~] Realistic examples in existing docs
+
+8. Testing
+[~] Unit tests exist
+[ ] Real PostgreSQL/Redis integration tests
+[ ] Refresh token rotation tests
+[ ] Tenant isolation integration tests
+[ ] Transaction atomicity integration tests
+[ ] Worker queue tests
+[ ] Email enqueue tests for all required email events
+
+9. Required Files
+[x] README.md
+[x] .env.example
+[x] openapi.yaml
+[x] CHECKLIST.txt
+[x] DEPLOYED_URL.txt
+[x] VIDEO_LINK.txt
+[x] prisma/migrations/
+[x] tests/
+[x] frontend/
+[x] FRONTEND_FLOW_CHECKLIST.md
+
+10. Security
+[x] No hardcoded JWT/email secrets in application code
+[x] Password hashing
+[x] JWT issuer/audience validation
+[x] One-time tokens hashed at rest
+[x] Refresh tokens hashed at rest
+[~] Input validation is manual and should be centralized
+[~] Secure cookies not used because token transport is bearer-token based
+[~] Tenant isolation enforcement exists but needs integration tests
+[x] Role protection middleware
+
+11. Deployment
+[x] Environment-based configuration
+[x] Docker service names for networking
+[x] Health checks for backend, PostgreSQL, Redis
+[x] Startup waits on healthy dependencies
+[~] DeployRocks compatibility should be verified after environment variables are configured

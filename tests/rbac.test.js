@@ -13,7 +13,7 @@ jest.mock('../src/config/database', () => ({
   variant: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
   order: { findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn(), create: jest.fn(), update: jest.fn(), groupBy: jest.fn().mockResolvedValue([]) },
   refreshToken: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
-  $transaction: jest.fn().mockImplementation(async (arg) => typeof arg === 'function' ? arg({}) : Promise.all(arg)),
+  $transaction: jest.fn().mockImplementation(async (arg) => typeof arg === 'function' ? arg(require('../src/config/database')) : Promise.all(arg)),
 }));
 
 const request = require('supertest');
@@ -26,7 +26,7 @@ const makeToken = (role, tenantId = 'tenant-test-id') =>
   jwt.sign(
     { sub: `user-${role}`, email: `${role.toLowerCase()}@test.com`, role, tenantId },
     process.env.JWT_SECRET,
-    { expiresIn: '1h' }
+    { expiresIn: '1h', issuer: 'shopbuilder-api', audience: 'shopbuilder-clients' }
   );
 
 describe('RBAC — Unauthorized (no token)', () => {
@@ -170,7 +170,7 @@ describe('RBAC — Invalid token', () => {
     const expired = jwt.sign(
       { sub: 'u1', email: 'e@e.com', role: 'CUSTOMER', tenantId: null },
       process.env.JWT_SECRET,
-      { expiresIn: '-1s' }
+      { expiresIn: '-1s', issuer: 'shopbuilder-api', audience: 'shopbuilder-clients' }
     );
     const res = await request(app).get('/auth/me').set('Authorization', `Bearer ${expired}`);
     expect(res.status).toBe(401);

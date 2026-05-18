@@ -16,14 +16,165 @@ const assertPositiveInt = (quantity) => {
 
 const getInventoryStatus = async ({ variantId, tenantId }) => {
   const variant = await findVariant(variantId, tenantId);
+  const warehouses = prisma.warehouseInventory
+    ? await prisma.warehouseInventory.findMany({
+        where: { variantId, warehouse: { ...(tenantId ? { tenantId } : {}) } },
+        include: { warehouse: { select: { id: true, name: true, priority: true, region: true, storeId: true } } },
+        orderBy: [{ warehouse: { priority: 'asc' } }, { updatedAt: 'desc' }],
+      })
+    : [];
+
   return {
     variantId: variant.id,
     sku: variant.sku,
     stock: variant.stock,
     reservedStock: variant.reservedStock,
     availableStock: variant.stock - variant.reservedStock,
+    warehouses: warehouses.map((row) => ({
+      warehouseId: row.warehouseId,
+      warehouse: row.warehouse,
+      stock: row.stock,
+      reservedStock: row.reservedStock,
+      availableStock: row.stock - row.reservedStock,
+    })),
     updatedAt: variant.updatedAt,
   };
+};
+
+const listWarehouses = async ({ tenantId, storeId, page = 1, limit = 20 }) => {
+  const skip = (Number(page) - 1) * Number(limit);
+  const where = {};
+  if (tenantId) where.tenantId = tenantId;
+  if (storeId) where.storeId = storeId;
+
+  const [warehouses, total] = await prisma.$transaction([
+    prisma.warehouse.findMany({
+      where,
+      skip,
+      take: Number(limit),
+      include: { _count: { select: { inventory: true } } },
+      orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }],
+    }),
+    prisma.warehouse.count({ where }),
+  ]);
+
+  return { warehouses, total, page: Number(page), limit: Number(limit), pages: Math.ceil(total / Number(limit)) };
+};
+
+const createWarehouse = async ({ name, priority = 100, address, region, storeId, tenantId }) => {
+  if (!name || !tenantId) throw Object.assign(new Error('name and tenantId are required'), { status: 400 });
+  if (storeId) {
+    const store = await prisma.store.findFirst({ where: { id: storeId, tenantId } });
+    if (!store) throw Object.assign(new Error('Store not found'), { status: 404 });
+  }
+
+  return prisma.warehouse.create({ data: { name, priority: Number(priority), address, region, storeId: storeId || null, tenantId } });
+};
+
+const setWarehouseStock = async ({ warehouseId, variantId, quantity, tenantId }) => {
+  assertPositiveInt(quantity);
+  const warehouse = await prisma.warehouse.findFirst({ where: { id: warehouseId, ...(tenantId ? { tenantId } : {}) } });
+  if (!warehouse) throw Object.assign(new Error('Warehouse not found'), { status: 404 });
+  await findVariant(variantId, tenantId);
+
+  const inventory = await prisma.warehouseInventory.upsert({
+    where: { warehouseId_variantId: { warehouseId, variantId } },
+    create: { warehouseId, variantId, stock: quantity, reservedStock: 0 },
+    update: { stock: quantity },
+  });
+
+  await syncVariantStockFromWarehouses({ variantId });
+  return inventory;
+};
+
+const routeInventory = async ({ items, tenantId, storeId }) => {
+  if (!prisma.warehouseInventory) return null;
+  const plans = [];
+
+  for (const item of items) {
+    assertPositiveInt(item.quantity);
+    const rows = await prisma.warehouseInventory.findMany({
+      where: {
+        variantId: item.variantId,
+        warehouse: {
+          ...(tenantId ? { tenantId } : {}),
+          OR: [{ storeId }, { storeId: null }],
+        },
+      },
+      include: { warehouse: true },
+      orderBy: [{ warehouse: { priority: 'asc' } }, { updatedAt: 'desc' }],
+    });
+
+    let remaining = item.quantity;
+    for (const row of rows) {
+      const available = row.stock - row.reservedStock;
+      if (available <= 0) continue;
+      const quantity = Math.min(available, remaining);
+      plans.push({ variantId: item.variantId, warehouseId: row.warehouseId, quantity });
+      remaining -= quantity;
+      if (remaining === 0) break;
+    }
+
+    if (remaining > 0) {
+      return null;
+    }
+  }
+
+  return plans;
+};
+
+const reserveWarehousePlan = async ({ tx, orderId, plan }) => {
+  for (const line of plan) {
+    await tx.warehouseInventory.update({
+      where: { warehouseId_variantId: { warehouseId: line.warehouseId, variantId: line.variantId } },
+      data: { reservedStock: { increment: line.quantity } },
+    });
+    await tx.inventoryReservation.create({
+      data: { orderId, warehouseId: line.warehouseId, variantId: line.variantId, quantity: line.quantity },
+    });
+  }
+};
+
+const finalizeWarehouseReservations = async ({ tx, orderId }) => {
+  const reservations = await tx.inventoryReservation.findMany({ where: { orderId } });
+  for (const reservation of reservations) {
+    await tx.warehouseInventory.update({
+      where: {
+        warehouseId_variantId: {
+          warehouseId: reservation.warehouseId,
+          variantId: reservation.variantId,
+        },
+      },
+      data: {
+        stock: { decrement: reservation.quantity },
+        reservedStock: { decrement: reservation.quantity },
+      },
+    });
+  }
+};
+
+const releaseWarehouseReservations = async ({ tx, orderId }) => {
+  const reservations = await tx.inventoryReservation.findMany({ where: { orderId } });
+  for (const reservation of reservations) {
+    await tx.warehouseInventory.update({
+      where: {
+        warehouseId_variantId: {
+          warehouseId: reservation.warehouseId,
+          variantId: reservation.variantId,
+        },
+      },
+      data: { reservedStock: { decrement: reservation.quantity } },
+    });
+  }
+  await tx.inventoryReservation.deleteMany({ where: { orderId } });
+};
+
+const syncVariantStockFromWarehouses = async ({ variantId }) => {
+  const rows = await prisma.warehouseInventory.findMany({ where: { variantId } });
+  if (rows.length === 0) return;
+  const stock = rows.reduce((sum, row) => sum + row.stock, 0);
+  const reservedStock = rows.reduce((sum, row) => sum + row.reservedStock, 0);
+  await prisma.variant.update({ where: { id: variantId }, data: { stock, reservedStock } });
 };
 
 const increaseStock = async ({ variantId, quantity, tenantId }) => {
@@ -109,6 +260,13 @@ const transferInventory = async ({ fromVariantId, toVariantId, quantity, tenantI
 
 module.exports = {
   getInventoryStatus,
+  listWarehouses,
+  createWarehouse,
+  setWarehouseStock,
+  routeInventory,
+  reserveWarehousePlan,
+  finalizeWarehouseReservations,
+  releaseWarehouseReservations,
   increaseStock,
   decreaseStock,
   reserveStock,

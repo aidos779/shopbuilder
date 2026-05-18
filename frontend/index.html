@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ShopBuilder Console</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div id="toastHost" class="toast-host" aria-live="polite"></div>
+    <div class="shell">
+      <aside class="sidebar">
+        <a class="brand" href="#/dashboard" aria-label="ShopBuilder dashboard">
+          <span class="brand-mark">S</span>
+          <span>
+            <strong>ShopBuilder</strong>
+            <small>Commerce OS</small>
+          </span>
+        </a>
+        <nav id="nav" class="nav" aria-label="Primary navigation"></nav>
+        <div class="sidebar-card">
+          <small>API endpoint</small>
+          <input id="apiBase" aria-label="API endpoint" />
+        </div>
+      </aside>
+
+      <div class="main-shell">
+        <header class="topbar">
+          <div>
+            <p id="eyebrow" class="eyebrow">Demo ready</p>
+            <h1 id="pageTitle">Dashboard</h1>
+          </div>
+          <div class="topbar-actions">
+            <select id="storePicker" aria-label="Current store"></select>
+            <span id="sessionPill" class="session-pill">Signed out</span>
+            <button id="logoutButton" class="ghost-button" type="button">Logout</button>
+          </div>
+        </header>
+        <main id="app" class="content"></main>
+      </div>
+    </div>
+    <script src="/app.js"></script>
+  </body>
+</html>

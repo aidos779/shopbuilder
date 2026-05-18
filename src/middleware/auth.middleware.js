@@ -8,7 +8,10 @@ const authenticate = (req, res, next) => {
 
   const token = authHeader.slice(7);
   try {
-    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = jwt.verify(token, process.env.JWT_SECRET, {
+      issuer: 'shopbuilder-api',
+      audience: 'shopbuilder-clients',
+    });
     next();
   } catch {
     return res.status(401).json({ error: 'Unauthorized: Invalid or expired token' });

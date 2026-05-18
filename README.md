@@ -4,6 +4,23 @@ A production-grade RESTful backend API for multi-tenant e-commerce shop manageme
 
 ---
 
+## Current Defense Upgrade Status
+
+This repository now includes a backend, a separate worker entrypoint, a static frontend that consumes real backend APIs, Docker Compose services for PostgreSQL 15, Redis, backend, worker, and frontend, and required defense files (`CHECKLIST.txt`, `DEPLOYED_URL.txt`, `VIDEO_LINK.txt`).
+
+Important security fixes included in this upgrade:
+
+- Public registration is limited to `CUSTOMER` and `MERCHANT_OWNER`; users cannot self-register as platform admins.
+- Merchant-owner onboarding creates the tenant, merchant profile, and owner account in one transaction.
+- Refresh tokens rotate on every refresh and are stored only as SHA-256 hashes.
+- Email verification and password reset tokens are stored only as SHA-256 hashes.
+- JWTs use issuer and audience validation.
+- Production startup requires Redis and SMTP configuration.
+
+Some final-defense business modules are still intentionally marked incomplete in `CHECKLIST.txt`, including multi-warehouse inventory, payment/3D Secure, webhook retry/DLQ, discounts, abandoned cart workers, storefront API scopes, and subscription billing.
+
+---
+
 ## Architecture
 
 ```
@@ -196,6 +213,9 @@ npm run dev
 ```bash
 # Run all tests
 npm test
+
+# Verify real SMTP provider
+npm run verify:email
 ```
 
 Tests use Jest with mocked Prisma and a real Express app via Supertest. No live database or Redis required.

@@ -87,4 +87,43 @@ const sendOrderConfirmationEmail = async (email, order) => {
   });
 };
 
-module.exports = { sendVerificationEmail, sendPasswordResetEmail, sendOrderConfirmationEmail };
+const sendMerchantOrderNotificationEmail = async (email, order) => {
+  await enqueue('merchant-order-notification', {
+    to: email,
+    subject: `New order ${order.orderNumber}`,
+    html: orderConfirmationHtml(order),
+  });
+};
+
+const sendAbandonedCartReminderEmail = async (email, cart) => {
+  await enqueue('abandoned-cart-reminder', {
+    to: email,
+    subject: 'Complete your ShopBuilder checkout',
+    html: `
+      <h2>Your cart is waiting</h2>
+      <p>You still have ${cart.items?.length || 0} item(s) in your cart at ${cart.store?.name || 'the store'}.</p>
+      <p>Return to the storefront to complete your checkout.</p>
+    `,
+  });
+};
+
+const sendSubscriptionRenewalEmail = async (email, subscription) => {
+  await enqueue('subscription-renewal-billing', {
+    to: email,
+    subject: `Subscription renewed - ${subscription.planName}`,
+    html: `
+      <h2>Subscription billing notice</h2>
+      <p>Your ${subscription.planName} subscription has a renewal amount of ${subscription.currency} ${subscription.amount.toFixed(2)}.</p>
+      <p>Next billing date: ${new Date(subscription.nextBillingAt).toISOString()}</p>
+    `,
+  });
+};
+
+module.exports = {
+  sendVerificationEmail,
+  sendPasswordResetEmail,
+  sendOrderConfirmationEmail,
+  sendMerchantOrderNotificationEmail,
+  sendAbandonedCartReminderEmail,
+  sendSubscriptionRenewalEmail,
+};

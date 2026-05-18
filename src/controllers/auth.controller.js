@@ -2,11 +2,11 @@ const authService = require('../services/auth.service');
 
 const register = async (req, res, next) => {
   try {
-    const { email, password, role } = req.body;
+    const { email, password, role, tenantId, tenantName, merchantName, phone, address } = req.body;
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
-    const user = await authService.register({ email, password, role });
+    const user = await authService.register({ email, password, role, tenantId, tenantName, merchantName, phone, address });
     res.status(201).json({ message: 'Registration successful. Please check your email to verify your account.', user });
   } catch (err) {
     next(err);

@@ -79,10 +79,10 @@ const clearCart = async (req, res, next) => {
 
 const checkout = async (req, res, next) => {
   try {
-    const { storeId, notes } = req.body;
+    const { storeId, notes, discountCodes = [] } = req.body;
     if (!storeId) return res.status(400).json({ error: 'storeId is required' });
     const tenantId = resolveTenantId(req);
-    const order = await cartService.checkout({ userId: req.user.sub, storeId, tenantId, notes });
+    const order = await cartService.checkout({ userId: req.user.sub, storeId, tenantId, notes, discountCodes });
     await emailService.sendOrderConfirmationEmail(req.user.email, order);
     res.status(201).json(order);
   } catch (err) {

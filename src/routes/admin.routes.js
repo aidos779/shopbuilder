@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const adminController = require('../controllers/admin.controller');
+const queueController = require('../controllers/queue.controller');
 const { authenticate } = require('../middleware/auth.middleware');
 const { authorize } = require('../middleware/rbac.middleware');
 
@@ -44,6 +45,7 @@ const superOnly = [authenticate, authorize('SUPER_ADMIN')];
  *         description: Forbidden
  */
 router.get('/stats', ...adminOnly, adminController.getPlatformStats);
+router.get('/queues', ...adminOnly, queueController.visibility);
 
 /**
  * @swagger

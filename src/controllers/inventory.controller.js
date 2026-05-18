@@ -11,6 +11,45 @@ const getStatus = async (req, res, next) => {
   }
 };
 
+const listWarehouses = async (req, res, next) => {
+  try {
+    const tenantId = resolveTenantId(req);
+    const { storeId, page, limit } = req.query;
+    const result = await inventoryService.listWarehouses({ tenantId, storeId, page, limit });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const createWarehouse = async (req, res, next) => {
+  try {
+    const tenantId = resolveTenantId(req) || req.body.tenantId;
+    const { name, priority, address, region, storeId } = req.body;
+    const warehouse = await inventoryService.createWarehouse({ name, priority, address, region, storeId, tenantId });
+    res.status(201).json(warehouse);
+  } catch (err) {
+    next(err);
+  }
+};
+
+const setWarehouseStock = async (req, res, next) => {
+  try {
+    const tenantId = resolveTenantId(req);
+    const { warehouseId, variantId } = req.params;
+    const { quantity } = req.body;
+    const inventory = await inventoryService.setWarehouseStock({
+      warehouseId,
+      variantId,
+      quantity: Number(quantity),
+      tenantId,
+    });
+    res.json(inventory);
+  } catch (err) {
+    next(err);
+  }
+};
+
 const increase = async (req, res, next) => {
   try {
     const { quantity } = req.body;
@@ -71,4 +110,14 @@ const transfer = async (req, res, next) => {
   }
 };
 
-module.exports = { getStatus, increase, decrease, reserve, release, transfer };
+module.exports = {
+  getStatus,
+  listWarehouses,
+  createWarehouse,
+  setWarehouseStock,
+  increase,
+  decrease,
+  reserve,
+  release,
+  transfer,
+};

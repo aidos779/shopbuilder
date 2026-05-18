@@ -9,9 +9,12 @@ jest.mock('bcrypt', () => ({
 jest.mock('../src/config/database', () => ({
   user: { findUnique: jest.fn(), create: jest.fn() },
   refreshToken: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
-  tenant: { findUnique: jest.fn() },
+  tenant: { findUnique: jest.fn(), create: jest.fn() },
+  merchant: { create: jest.fn() },
   $transaction: jest.fn().mockImplementation(async (arg) =>
-    typeof arg === 'function' ? arg({}) : Promise.all(arg)
+    typeof arg === 'function'
+      ? arg(require('../src/config/database'))
+      : Promise.all(arg)
   ),
 }));
 

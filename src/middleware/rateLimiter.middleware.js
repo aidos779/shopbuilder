@@ -12,17 +12,21 @@ const createRateLimiter = (options = {}) => {
     ...options,
   };
 
-  // Use Redis store when available; fall back to in-memory store
   if (process.env.REDIS_HOST && process.env.NODE_ENV !== 'test') {
     try {
-      const RedisStore = require('rate-limit-redis');
+      const { RedisStore } = require('rate-limit-redis');
       const redis = require('../config/redis');
       config.store = new RedisStore({
         sendCommand: (...args) => redis.call(...args),
       });
     } catch (err) {
+      if (process.env.NODE_ENV === 'production') {
+        throw err;
+      }
       console.warn('Redis rate-limit store unavailable, using memory store:', err.message);
     }
+  } else if (process.env.NODE_ENV === 'production') {
+    throw new Error('REDIS_HOST is required for production rate limiting');
   }
 
   return rateLimit(config);

@@ -1,0 +1,30 @@
+Deployment URL
+
+Fill this after deploying on https://dashboard.deployrocks.com.
+
+FRONTEND_URL=
+API_URL=
+SWAGGER_URL=
+
+Required DeployRocks environment variables:
+- DATABASE_URL
+- POSTGRES_PASSWORD
+- REDIS_HOST
+- REDIS_PORT
+- JWT_SECRET
+- ALLOWED_ORIGINS
+- EMAIL_HOST
+- EMAIL_PORT
+- EMAIL_USER
+- EMAIL_PASS
+- EMAIL_FROM
+- EMAIL_TEST_TO
+- FRONTEND_URL
+- REQUIRE_EMAIL_VERIFICATION=true
+
+Pre-defense deployment checks:
+1. Open FRONTEND_URL.
+2. Open API_URL/health and confirm status is ok.
+3. Open SWAGGER_URL and confirm Swagger loads.
+4. Run the full flow from FRONTEND_FLOW_CHECKLIST.md.
+5. Confirm worker logs show email, webhook, abandoned-cart, and subscription workers started.

@@ -39,8 +39,21 @@ const strictLimiter = createRateLimiter({ max: 5, windowMs: 15 * 60 * 1000 });
  *                 example: "securePass1!"
  *               role:
  *                 type: string
- *                 enum: [SUPER_ADMIN, PLATFORM_ADMIN, MERCHANT_OWNER, STORE_MANAGER, CUSTOMER]
+ *                 enum: [CUSTOMER, MERCHANT_OWNER]
  *                 default: CUSTOMER
+ *                 description: Public registration never accepts platform/admin roles.
+ *               tenantName:
+ *                 type: string
+ *                 example: "Acme Commerce"
+ *               merchantName:
+ *                 type: string
+ *                 example: "Acme Retail Ltd"
+ *               phone:
+ *                 type: string
+ *                 example: "+1-555-0100"
+ *               address:
+ *                 type: string
+ *                 example: "123 Commerce St"
  *     responses:
  *       201:
  *         description: User registered — verification email sent
@@ -133,7 +146,7 @@ router.post('/login', authLimiter, authController.login);
  * /auth/refresh:
  *   post:
  *     tags: [Auth]
- *     summary: Exchange a refresh token for a new access token
+ *     summary: Exchange a refresh token for a new access token and rotated refresh token
  *     security: []
  *     requestBody:
  *       required: true
@@ -155,6 +168,9 @@ router.post('/login', authLimiter, authController.login);
  *               properties:
  *                 accessToken:
  *                   type: string
+ *                 refreshToken:
+ *                   type: string
+ *                   description: Replacement refresh token; the submitted token is revoked.
  *       401:
  *         description: Invalid or expired refresh token
  */
