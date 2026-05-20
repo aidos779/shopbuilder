@@ -1,3 +1,5 @@
+version: '3.9'
+
 services:
   postgres:
     image: postgres:15-alpine
@@ -7,8 +9,8 @@ services:
       POSTGRES_DB: shopbuilder
       POSTGRES_USER: shopbuilder
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    expose:
-      - "5432"
+    ports:
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -21,8 +23,8 @@ services:
     image: redis:7-alpine
     container_name: shopbuilder-redis
     restart: unless-stopped
-    expose:
-      - "6379"
+    ports:
+      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -43,9 +45,7 @@ services:
       REDIS_PORT: 6379
       NODE_ENV: production
       JWT_SECRET: ${JWT_SECRET}
-      PORT: 3000
-      HOST: 0.0.0.0
-      API_URL: ${API_URL:-http://localhost:3000}
+      PORT: ${PORT:-3000}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
       EMAIL_HOST: ${EMAIL_HOST:-smtp.mailtrap.io}
       EMAIL_PORT: ${EMAIL_PORT:-587}
@@ -79,7 +79,6 @@ services:
       REDIS_PORT: 6379
       NODE_ENV: production
       JWT_SECRET: ${JWT_SECRET}
-      REQUIRE_EMAIL_CONFIG: "true"
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
       EMAIL_HOST: ${EMAIL_HOST:-smtp.mailtrap.io}
       EMAIL_PORT: ${EMAIL_PORT:-587}
@@ -100,17 +99,10 @@ services:
     container_name: shopbuilder-frontend
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "5173:80"
     depends_on:
       backend:
         condition: service_healthy
-    environment:
-      API_URL: ${API_URL:-http://localhost:3000}
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
 
 volumes:
   pgdata:

@@ -2,7 +2,7 @@ require('dotenv').config();
 const { validateEnv } = require('./utils/env');
 const startWorkers = require('./workers');
 
-validateEnv({ requireEmail: true });
+validateEnv();
 
 startWorkers().catch((err) => {
   console.error('[worker] Failed to start workers:', err);

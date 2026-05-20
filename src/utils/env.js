@@ -1,11 +1,7 @@
 const REQUIRED = ['DATABASE_URL', 'JWT_SECRET'];
-const PRODUCTION_REQUIRED = ['REDIS_HOST'];
-const EMAIL_REQUIRED = ['EMAIL_HOST', 'EMAIL_USER', 'EMAIL_PASS', 'EMAIL_FROM'];
+const PRODUCTION_REQUIRED = ['REDIS_HOST', 'EMAIL_HOST', 'EMAIL_USER', 'EMAIL_PASS', 'EMAIL_FROM', 'ALLOWED_ORIGINS'];
 
-const csv = (value = '') => value.split(',').map((item) => item.trim()).filter(Boolean);
-
-const validateEnv = (options = {}) => {
-  const requireEmail = options.requireEmail ?? process.env.REQUIRE_EMAIL_CONFIG === 'true';
+const validateEnv = () => {
   const missing = REQUIRED.filter((key) => !process.env[key]);
   if (missing.length > 0) {
     console.error(`[env] Missing required environment variables: ${missing.join(', ')}`);
@@ -17,28 +13,6 @@ const validateEnv = (options = {}) => {
     if (productionMissing.length > 0) {
       console.error(`[env] Missing production environment variables: ${productionMissing.join(', ')}`);
       process.exit(1);
-    }
-
-    const origins = [...csv(process.env.ALLOWED_ORIGINS), process.env.FRONTEND_URL].filter(Boolean);
-    if (origins.length === 0) {
-      console.error('[env] Set ALLOWED_ORIGINS or FRONTEND_URL to the deployed frontend origin in production');
-      process.exit(1);
-    }
-    if (origins.includes('*')) {
-      console.error('[env] ALLOWED_ORIGINS must list explicit frontend origins in production; wildcard "*" is not allowed');
-      process.exit(1);
-    }
-  }
-
-  const emailMissing = EMAIL_REQUIRED.filter((key) => !process.env[key]);
-  if (emailMissing.length > 0) {
-    const message = `[env] Missing email environment variables: ${emailMissing.join(', ')}`;
-    if (requireEmail) {
-      console.error(message);
-      process.exit(1);
-    }
-    if (process.env.NODE_ENV === 'production') {
-      console.warn(`${message}. API will start, but email delivery workers need these values.`);
     }
   }
 

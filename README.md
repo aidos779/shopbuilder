@@ -103,11 +103,6 @@ docker compose up
 The API is available at: `http://localhost:3000`  
 Swagger UI: `http://localhost:3000/docs`
 
-For production container hosts such as DeployRocks, the backend binds to
-`0.0.0.0:3000` and `docker-compose.yml` publishes `3000:3000`. Set `API_URL`
-to the public backend URL and set `ALLOWED_ORIGINS` or `FRONTEND_URL` to the
-public frontend origin. Do not use `*` for production CORS.
-
 ### Option 2 — Local Development
 
 **Prerequisites:** Node.js 20+, PostgreSQL 15, Redis 7
@@ -138,9 +133,7 @@ npm run dev
 | `REDIS_HOST` | ✅ | Redis hostname |
 | `REDIS_PORT` | ✅ | Redis port (default 6379) |
 | `PORT` | — | HTTP port (default 3000) |
-| `HOST` | — | Bind address (default `0.0.0.0`) |
-| `API_URL` | — | Public backend URL used by Swagger/frontend |
-| `ALLOWED_ORIGINS` | — | Comma-separated explicit CORS origins; no wildcard in production |
+| `ALLOWED_ORIGINS` | — | Comma-separated CORS origins |
 | `NODE_ENV` | — | `development` / `production` / `test` |
 | `EMAIL_HOST` | — | SMTP host (e.g. `smtp.mailtrap.io`) |
 | `EMAIL_PORT` | — | SMTP port (e.g. `587`) |
@@ -149,7 +142,6 @@ npm run dev
 | `EMAIL_FROM` | — | Sender address |
 | `FRONTEND_URL` | — | Base URL for email links (default `http://localhost:5173`) |
 | `REQUIRE_EMAIL_VERIFICATION` | — | `true` to enforce email verification before login |
-| `REQUIRE_EMAIL_CONFIG` | — | `true` to make worker startup fail fast without SMTP config |
 
 ---
 

@@ -12,8 +12,7 @@ Required DeployRocks environment variables:
 - REDIS_HOST
 - REDIS_PORT
 - JWT_SECRET
-- API_URL=<public backend URL, no trailing slash>
-- ALLOWED_ORIGINS=<public frontend URL, no wildcard>
+- ALLOWED_ORIGINS
 - EMAIL_HOST
 - EMAIL_PORT
 - EMAIL_USER
@@ -25,11 +24,7 @@ Required DeployRocks environment variables:
 
 Pre-defense deployment checks:
 1. Open FRONTEND_URL.
-2. Open API_URL/ and confirm `{ "status": "ok", "message": "ShopBuilder API running" }`.
-3. Open API_URL/health and confirm status is ok.
-4. Open API_URL/docs and confirm Swagger loads.
-5. Confirm the frontend API endpoint field is set to API_URL.
-6. Register/login and confirm browser requests go to API_URL, not localhost.
-7. Confirm backend logs show `ShopBuilder API listening on http://0.0.0.0:3000`.
-8. Confirm DeployRocks/Dokku detects the frontend web listener from `80:80`.
-9. Confirm worker logs show email, webhook, abandoned-cart, and subscription workers started.
+2. Open API_URL/health and confirm status is ok.
+3. Open SWAGGER_URL and confirm Swagger loads.
+4. Run the full flow from FRONTEND_FLOW_CHECKLIST.md.
+5. Confirm worker logs show email, webhook, abandoned-cart, and subscription workers started.

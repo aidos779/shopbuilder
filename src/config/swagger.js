@@ -1,14 +1,5 @@
 const swaggerJsdoc = require('swagger-jsdoc');
 
-const productionApiUrl = (process.env.API_URL || process.env.PUBLIC_API_URL || process.env.BACKEND_URL || '')
-  .trim()
-  .replace(/\/+$/, '');
-
-const servers = [
-  productionApiUrl && { url: productionApiUrl, description: 'Production' },
-  { url: 'http://localhost:3000', description: 'Local development' },
-].filter(Boolean);
-
 const options = {
   definition: {
     openapi: '3.0.0',
@@ -47,7 +38,9 @@ Admins can override \`tenantId\` via query parameter.
         email: 'api@shopbuilder.io',
       },
     },
-    servers,
+    servers: [
+      { url: 'http://localhost:3000', description: 'Local development' },
+    ],
     components: {
       securitySchemes: {
         bearerAuth: {
