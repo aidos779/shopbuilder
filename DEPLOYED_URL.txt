@@ -31,4 +31,5 @@ Pre-defense deployment checks:
 5. Confirm the frontend API endpoint field is set to API_URL.
 6. Register/login and confirm browser requests go to API_URL, not localhost.
 7. Confirm backend logs show `ShopBuilder API listening on http://0.0.0.0:3000`.
-8. Confirm worker logs show email, webhook, abandoned-cart, and subscription workers started.
+8. Confirm DeployRocks/Dokku detects the frontend web listener from `80:80`.
+9. Confirm worker logs show email, webhook, abandoned-cart, and subscription workers started.
