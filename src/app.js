@@ -8,6 +8,7 @@ const { validateEnv } = require('./utils/env');
 validateEnv();
 
 const authRoutes = require('./routes/auth.routes');
+const authController = require('./controllers/auth.controller');
 const productRoutes = require('./routes/product.routes');
 const merchantRoutes = require('./routes/merchant.routes');
 const storeRoutes = require('./routes/store.routes');
@@ -61,6 +62,7 @@ app.use(express.json());
 
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
+app.get('/api/auth/verify-email', authController.verifyEmailFromLink);
 app.use('/auth', authRoutes);
 app.use('/products', productRoutes);
 app.use('/merchants', merchantRoutes);

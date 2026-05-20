@@ -94,6 +94,7 @@ router.post('/register', authLimiter, authController.register);
  *         description: Too many requests
  */
 router.post('/verify-email', strictLimiter, authController.verifyEmail);
+router.get('/verify-email', strictLimiter, authController.verifyEmailFromLink);
 
 /**
  * @swagger

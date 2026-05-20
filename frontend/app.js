@@ -28,7 +28,6 @@ const state = {
 const routes = {
   '/login': { title: 'Welcome Back', eyebrow: 'Authentication', public: true, render: renderAuth },
   '/register': { title: 'Create Account', eyebrow: 'Authentication', public: true, render: renderAuth },
-  '/verify-email': { title: 'Email Verification', eyebrow: 'Account setup', public: true, render: renderVerification },
   '/reset-password': { title: 'Password Reset', eyebrow: 'Account recovery', public: true, render: renderPasswordReset },
   '/dashboard': { title: 'Merchant Dashboard', eyebrow: 'Operations', render: renderDashboard },
   '/stores': { title: 'Stores', eyebrow: 'Tenant workspace', render: renderStores },
@@ -293,45 +292,6 @@ function renderAuth(path) {
       $$('[data-merchant-field]').forEach((field) => { field.hidden = event.target.value === 'CUSTOMER'; });
     });
   }
-}
-
-async function renderVerification() {
-  const token = new URLSearchParams(location.hash.split('?')[1] || location.search).get('token') || '';
-  if (token) {
-    try {
-      const result = await api('/auth/verify-email', { method: 'POST', body: JSON.stringify({ token }) });
-      $('#app').innerHTML = `
-        <section class="narrow">
-          <div class="panel empty">
-            <strong>Email verified</strong>
-            <p>${escapeHtml(result.message || 'You can now log in.')}</p>
-            <a class="button" href="#/login">Go to login</a>
-          </div>
-        </section>
-      `;
-      return;
-    } catch (error) {
-      $('#app').innerHTML = `
-        <section class="narrow">
-          <div class="panel empty">
-            <strong>Verification failed</strong>
-            <p>${escapeHtml(error.message)}</p>
-            <a class="button secondary" href="#/verify-email">Enter token manually</a>
-          </div>
-        </section>
-      `;
-      return;
-    }
-  }
-  $('#app').innerHTML = `
-    <section class="narrow">
-      <form id="verifyForm" class="panel form-panel">
-        <h2>Verify email</h2>
-        <label>Verification token<input name="token" value="${escapeHtml(token)}" required /></label>
-        <button type="submit">Verify email</button>
-      </form>
-    </section>
-  `;
 }
 
 function renderPasswordReset() {
@@ -755,15 +715,6 @@ function bindCommonForms() {
       const data = formValues(event.target);
       const result = await api('/auth/register', { method: 'POST', body: JSON.stringify(data) });
       toast(result.message || 'Registration successful. Check email for verification.');
-      location.hash = '#/verify-email';
-    });
-  });
-
-  $('#verifyForm')?.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    await submit(async () => {
-      const result = await api('/auth/verify-email', { method: 'POST', body: JSON.stringify(formValues(event.target)) });
-      toast(result.message || 'Email verified');
       location.hash = '#/login';
     });
   });

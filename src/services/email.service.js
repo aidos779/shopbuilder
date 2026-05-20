@@ -62,7 +62,7 @@ const orderConfirmationHtml = (order) => `
 </html>`;
 
 const sendVerificationEmail = async (email, token) => {
-  const url = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email?token=${token}`;
+  const url = `http://localhost:3000/api/auth/verify-email?token=${token}`;
   await enqueue('verify-email', {
     to: email,
     subject: 'Verify your ShopBuilder account',

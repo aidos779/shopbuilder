@@ -1,0 +1,1 @@
+window.SHOPBUILDER_CONFIG = { API_URL: '' };

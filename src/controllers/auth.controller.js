@@ -24,6 +24,17 @@ const verifyEmail = async (req, res, next) => {
   }
 };
 
+const verifyEmailFromLink = async (req, res, next) => {
+  try {
+    const { token } = req.query;
+    if (!token) return res.status(400).json({ error: 'token is required' });
+    await authService.verifyEmail(token);
+    res.redirect('http://localhost:5173/login');
+  } catch (err) {
+    next(err);
+  }
+};
+
 const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
@@ -104,4 +115,4 @@ const changePassword = async (req, res, next) => {
   }
 };
 
-module.exports = { register, verifyEmail, login, refresh, logout, me, forgotPassword, resetPassword, changePassword };
+module.exports = { register, verifyEmail, verifyEmailFromLink, login, refresh, logout, me, forgotPassword, resetPassword, changePassword };
