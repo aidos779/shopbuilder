@@ -24,10 +24,21 @@ const analyticsRoutes = require('./routes/analytics.routes');
 
 const app = express();
 
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000')
+const normalizeOrigin = (origin) => origin.trim().replace(/\/+$/, '');
+
+const defaultAllowedOrigins = process.env.NODE_ENV === 'production'
+  ? ''
+  : 'http://localhost:3000,http://localhost:5173';
+
+const allowedOrigins = [
+  process.env.ALLOWED_ORIGINS || defaultAllowedOrigins,
+  process.env.FRONTEND_URL,
+]
+  .filter(Boolean)
+  .join(',')
   .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+  .map(normalizeOrigin)
+  .filter((origin, index, origins) => origin && origin !== '*' && origins.indexOf(origin) === index);
 
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -42,8 +53,10 @@ app.use((_req, res, next) => {
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
-      callback(new Error(`CORS: origin ${origin} not allowed`));
+      if (!origin || allowedOrigins.includes(normalizeOrigin(origin))) return callback(null, true);
+      const error = new Error(`CORS: origin ${origin} not allowed`);
+      error.status = 403;
+      callback(error);
     },
     credentials: true,
   })
@@ -52,6 +65,14 @@ app.use(
 app.use(express.json());
 
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.get('/openapi.json', (_req, res) => res.json(swaggerSpec));
+
+app.get('/', (_req, res) => {
+  res.json({
+    status: 'ok',
+    message: 'ShopBuilder API running',
+  });
+});
 
 app.use('/auth', authRoutes);
 app.use('/products', productRoutes);

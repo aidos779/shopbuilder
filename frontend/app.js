@@ -1,8 +1,14 @@
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
+const configuredApiBase = window.SHOPBUILDER_CONFIG?.API_URL || (
+  location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+    ? 'http://localhost:3000'
+    : location.origin
+);
+
 const state = {
-  apiBase: localStorage.getItem('apiBase') || 'http://localhost:3000',
+  apiBase: localStorage.getItem('apiBase') || configuredApiBase.replace(/\/+$/, ''),
   accessToken: localStorage.getItem('accessToken') || '',
   refreshToken: localStorage.getItem('refreshToken') || '',
   user: readJson('user'),
