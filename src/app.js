@@ -24,6 +24,7 @@ const subscriptionRoutes = require('./routes/subscription.routes');
 const analyticsRoutes = require('./routes/analytics.routes');
 
 const app = express();
+app.set('trust proxy', 1);
 
 const allowedOrigins = [
   'http://localhost:3000',
