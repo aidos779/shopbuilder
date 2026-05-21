@@ -1,1 +1,1 @@
-window.SHOPBUILDER_CONFIG = { API_URL: '' };
+window.SHOPBUILDER_CONFIG = { API_URL: 'https://shopbuilder-final.onrender.com' };
