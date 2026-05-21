@@ -1,7 +1,7 @@
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
-const PRODUCTION_API_BASE = 'https://aidos779-shopbuilder-api.kazi.rocks';
+const PRODUCTION_API_BASE = 'https://shopbuilder-final.onrender.com';
 const LOCAL_API_BASE = 'http://localhost:3000';
 const isLocalFrontend = ['localhost', '127.0.0.1', ''].includes(location.hostname);
 const defaultApiBase = isLocalFrontend ? LOCAL_API_BASE : PRODUCTION_API_BASE;
