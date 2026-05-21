@@ -117,7 +117,7 @@ const register = async ({ email, password, role = 'CUSTOMER', tenantId, tenantNa
     return createdUser;
   });
 
-  await emailService.sendVerificationEmail(email, verificationToken);
+  //await emailService.sendVerificationEmail(email, verificationToken);
 
   return user;
 };
