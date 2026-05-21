@@ -39,7 +39,7 @@ Admins can override \`tenantId\` via query parameter.
       },
     },
     servers: [
-      { url: 'http://localhost:3000', description: 'Local development' },
+      { url: 'https://shopbuilder-final.onrender.com', description: 'Local development' },
     ],
     components: {
       securitySchemes: {
