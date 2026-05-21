@@ -2,9 +2,9 @@ Deployment URL
 
 Fill this after deploying on https://dashboard.deployrocks.com.
 
-FRONTEND_URL=
-API_URL=
-SWAGGER_URL=
+FRONTEND_URL=https://shopbuilder-lac.vercel.app
+API_URL=https://shopbuilder-final.onrender.com
+SWAGGER_URL=https://shopbuilder-final.onrender.com/docs
 
 Required DeployRocks environment variables:
 - DATABASE_URL
