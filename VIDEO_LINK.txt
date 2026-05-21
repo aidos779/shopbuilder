@@ -1,6 +1,6 @@
 Demo Video Link
 
-VIDEO_URL=
+VIDEO_URL=https://youtu.be/SQiDaDUyxaM
 
 The video must show:
 1. `docker compose up --build` booting PostgreSQL, Redis, backend, worker, and frontend.
